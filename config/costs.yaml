@@ -1,0 +1,29 @@
+# Transaction cost model
+#
+# Costs are always on by default. Disabling requires explicit flag
+# and results are marked as "gross".
+
+brokerage:
+  # Percentage of trade value
+  percent: 0.0015  # 0.15% (15 bps)
+  # Minimum fee per trade in SEK
+  minimum_sek: 39.0
+
+spread:
+  # Half-spread by liquidity bucket (percentage)
+  # Bucket is determined by median daily turnover in SEK
+  buckets:
+    - max_turnover: 500000      # < 500k SEK/day
+      half_spread: 0.0100       # 1.0%
+    - max_turnover: 2000000     # 500k - 2M SEK/day
+      half_spread: 0.0050       # 0.5%
+    - max_turnover: 10000000    # 2M - 10M SEK/day
+      half_spread: 0.0020       # 0.2%
+    - max_turnover: null        # > 10M SEK/day
+      half_spread: 0.0010       # 0.1%
+
+capacity:
+  # Maximum order size as percentage of median daily turnover
+  max_participation_rate: 0.10  # 10%
+  # How to handle orders exceeding capacity
+  excess_handling: "partial_fill"  # "partial_fill" or "spread_over_days"

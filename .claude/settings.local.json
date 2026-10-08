@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "Bash(make check:*)",
+      "Bash(make format:*)",
+      "Bash(make db-up:*)",
+      "Bash(docker rm:*)",
+      "Bash(uv run alembic revision:*)",
+      "Bash(make db-migrate:*)",
+      "Bash(uv run:*)",
+      "Bash(psql:*)"
+    ]
+  }
+}

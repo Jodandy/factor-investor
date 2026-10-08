@@ -1,0 +1,51 @@
+[database]
+url = "${DATABASE_URL}"
+
+[paths]
+data_dir = "data"
+cache_dir = "data/cache"
+parquet_dir = "data/parquet"
+raw_json_dir = "data/raw"
+
+[holdout]
+start = 2022-07-01
+
+[defaults]
+base_currency = "SEK"
+
+# Conservative fallback delays for report publication dates (calendar days)
+# Used when actual publication date is not available in the data
+[report_delays]
+quarterly = 60  # Period end + 60 days
+annual = 90     # Period end + 90 days
+trading_day_buffer = 1  # Additional buffer to prevent same-day trading
+
+[universe]
+# PHILOSOPHY: Universe = all instruments with sufficient data quality
+# NO geographic filters, NO market cap cutoffs, NO liquidity requirements
+# Strategies apply their own selection criteria at backtest time
+
+# Data quality filters (minimal - exclude pennystocks and trash data)
+min_price = 5.0  # Filter out pennystocks (< 5 in local currency)
+
+# Liquidity buckets (for transaction cost modeling - informational, not exclusionary)
+# These thresholds are used to classify instruments, not exclude them
+liquidity_bucket_thresholds = [
+    10_000_000.0,  # >= 10M daily turnover = bucket 1 (most liquid)
+    1_000_000.0,   # >= 1M = bucket 2
+    100_000.0,     # >= 100k = bucket 3
+    10_000.0,      # >= 10k = bucket 4
+    # < 10k = bucket 5 (least liquid)
+]
+
+[corporate_events]
+# Recovery rate assumptions for detected delistings
+default_delisting_recovery = 1.0  # Optimistic: assume acquisition at final price
+
+[backtest]
+# Execution delay: signal on day T, execute on day T+N
+execution_delay_days = 1
+
+[costs]
+# Default cost model reference
+default_model = "costs.yaml"

@@ -1,0 +1,33 @@
+# Corrupted Instruments - Data Quality Issues
+#
+# This file lists instruments with known data quality problems that should
+# be excluded from backtests.
+#
+# Common issues:
+# - Reverse splits not properly adjusted
+# - Corporate actions missing
+# - Delisting/bankruptcy events causing extreme price movements
+# - Data provider errors
+
+corrupted_instruments:
+  - instrument_id: 61873
+    name: "Synergy CHC Corp"
+    isin: null
+    issue: "Extreme price spike (689x in 4 months) - likely reverse split or data error"
+    date_identified: "2025-01-08"
+    notes: "Price went from 0.31 SEK to 216 SEK between Dec 2021 and Oct 2024. Unrealistic."
+
+  - instrument_id: 20346
+    name: "Spadel SA"
+    isin: null
+    issue: "Data error from Börsdata - Belgian version has corrupt data"
+    date_identified: "2025-01-08"
+    notes: "German Spadel SA looks legitimate, but Belgian version has data quality issues. Same name causes confusion."
+
+  # Add more as discovered
+  # - instrument_id: XXXXX
+  #   name: "Company Name"
+  #   isin: "ISIN_CODE"
+  #   issue: "Description of issue"
+  #   date_identified: "YYYY-MM-DD"
+  #   notes: "Additional context"
