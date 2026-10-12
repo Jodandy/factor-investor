@@ -10,7 +10,7 @@ Successfully implemented the lazy factor calculation system that enables generat
 - Normalizations (cross-sectional scaling)
 - Parquet caching for performance
 
-## What Was Built
+## What Was Builtds
 
 ### 1. Core Modules
 
