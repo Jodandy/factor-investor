@@ -19,6 +19,13 @@ class ReportDelayConfig(BaseModel):
     annual: int = 90
     """Days after period end for annual reports (default: 90)."""
 
+    min_publication_days: int = 10
+    """Minimum days between period end and a trusted report_date (default: 10).
+
+    Earlier dates are treated as missing and the fallback delay is used.
+    Börsdata has placeholder dates on or just after period end.
+    """
+
     trading_day_buffer: int = 1
     """Additional buffer days to prevent same-day trading (default: 1).
 

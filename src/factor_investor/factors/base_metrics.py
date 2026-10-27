@@ -13,6 +13,69 @@ from factor_investor.pit import as_of
 logger = logging.getLogger(__name__)
 
 
+def valuation_ratios(price: float, row: dict) -> dict[str, float]:
+    """Valuation ratios from a point-in-time report row and a price.
+
+    Börsdata units: totals (revenues, free_cash_flow, net_debt,
+    operating_income) and number_of_shares are in millions, so
+    market cap in millions = price * number_of_shares. earnings_per_share,
+    book_value_per_share and dividend (DPS) are per share. Report values are
+    already converted to the trading currency.
+
+    Ratios with a zero, negative or missing denominator are omitted, except
+    yields, which are well-defined for negative or zero numerators.
+
+    Args:
+        price: Share price
+        row: Report values keyed by metric name
+
+    Returns:
+        Dict of metric name -> value (only computable ratios)
+    """
+    max_ratio = 1_000_000  # Larger values are data errors
+
+    def num(key: str) -> float | None:
+        value = row.get(key)
+        return float(value) if value is not None else None
+
+    ratios: dict[str, float] = {}
+    if price <= 0:
+        return ratios
+
+    eps = num("earnings_per_share")
+    if eps is not None and eps > 0:
+        ratios["pe_ratio"] = price / eps
+
+    book_value = num("book_value_per_share")
+    if book_value is not None and book_value > 0:
+        ratios["pb_ratio"] = price / book_value
+
+    dividend = num("dividend")
+    if dividend is not None and dividend >= 0:
+        ratios["dividend_yield"] = dividend / price
+
+    shares = num("number_of_shares")
+    if shares is not None and shares > 0:
+        market_cap = price * shares  # millions
+
+        revenues = num("revenues")
+        if revenues is not None and revenues > 0:
+            ratios["ps_ratio"] = market_cap / revenues
+
+        fcf = num("free_cash_flow")
+        if fcf is not None:
+            ratios["fcf_yield"] = fcf / market_cap
+            if fcf > 0:
+                ratios["p_fcf"] = market_cap / fcf
+
+        net_debt = num("net_debt")
+        operating_income = num("operating_income")
+        if net_debt is not None and operating_income is not None and operating_income > 0:
+            ratios["ev_ebit"] = (market_cap + net_debt) / operating_income
+
+    return {name: value for name, value in ratios.items() if abs(value) < max_ratio}
+
+
 def calculate_fundamental_metrics(
     session: Session,
     rebal_date: date,
@@ -217,7 +280,7 @@ def calculate_fundamental_metrics(
 
     # Constants for validation
     MAX_RATIO = 1_000_000  # Skip ratios > 1 million (likely data issues)
-    MIN_DENOMINATOR = 0.001  # Skip if denominator < 0.001 (prevents extreme ratios)
+    MIN_DENOMINATOR = 0.001  # Skip growth if base < 0.001 (prevents extreme ratios)
 
     # Calculate valuation metrics
     for row in joined_df.iter_rows(named=True):
@@ -228,121 +291,14 @@ def calculate_fundamental_metrics(
         if not price or not known_from:
             continue
 
-        # P/E ratio
-        if should_calculate("pe_ratio"):
-            eps = row.get("earnings_per_share")
-            if eps and eps > MIN_DENOMINATOR and price:
-                pe_ratio = float(price) / float(eps)
-                if 0 < pe_ratio < MAX_RATIO:
-                    metrics.append(
-                        {
-                            "instrument_id": ins_id,
-                            "metric": "pe_ratio",
-                            "date": rebal_date,
-                            "value": pe_ratio,
-                            "known_from": known_from,
-                        }
-                    )
-
-        # P/B ratio
-        if should_calculate("pb_ratio"):
-            book_value = row.get("book_value_per_share")
-            if book_value and book_value > MIN_DENOMINATOR and price:
-                pb_ratio = float(price) / float(book_value)
-                if 0 < pb_ratio < MAX_RATIO:
-                    metrics.append(
-                        {
-                            "instrument_id": ins_id,
-                            "metric": "pb_ratio",
-                            "date": rebal_date,
-                            "value": pb_ratio,
-                            "known_from": known_from,
-                        }
-                    )
-
-        # Calculate per-share values
-        shares = row.get("number_of_shares")  # in millions
-
-        # P/S ratio
-        if should_calculate("ps_ratio"):
-            revenues = row.get("revenues")
-            if revenues and shares and shares > 0 and price:
-                revenue_per_share = float(revenues) / (float(shares) * 1_000_000)
-                if revenue_per_share > MIN_DENOMINATOR:
-                    ps_ratio = float(price) / revenue_per_share
-                    if 0 < ps_ratio < MAX_RATIO:
-                        metrics.append(
-                            {
-                                "instrument_id": ins_id,
-                                "metric": "ps_ratio",
-                                "date": rebal_date,
-                                "value": ps_ratio,
-                                "known_from": known_from,
-                            }
-                        )
-
-        # EV/EBIT (Enterprise Value / Operating Income)
-        if should_calculate("ev_ebit"):
-            net_debt = row.get("net_debt")
-            operating_income = row.get("operating_income")
-            if shares and net_debt is not None and operating_income and abs(float(operating_income)) > MIN_DENOMINATOR and price:
-                market_cap = float(price) * float(shares) * 1_000_000
-                ev = market_cap + float(net_debt)
-                ev_ebit = ev / float(operating_income)
-                if abs(ev_ebit) < MAX_RATIO:
-                    metrics.append(
-                        {
-                            "instrument_id": ins_id,
-                            "metric": "ev_ebit",
-                            "date": rebal_date,
-                            "value": ev_ebit,
-                            "known_from": known_from,
-                        }
-                    )
-
-        # P/FCF
-        if should_calculate("p_fcf"):
-            fcf = row.get("free_cash_flow")
-            if fcf and shares and shares > 0 and price:
-                fcf_per_share = float(fcf) / (float(shares) * 1_000_000)
-                if abs(fcf_per_share) > MIN_DENOMINATOR:
-                    p_fcf = float(price) / fcf_per_share
-                    if abs(p_fcf) < MAX_RATIO:
-                        metrics.append(
-                            {
-                                "instrument_id": ins_id,
-                                "metric": "p_fcf",
-                                "date": rebal_date,
-                                "value": p_fcf,
-                                "known_from": known_from,
-                            }
-                        )
-
-        # FCF yield
-        if should_calculate("fcf_yield"):
-            if fcf and shares and shares > 0 and price and price > 0:
-                fcf_per_share = float(fcf) / (float(shares) * 1_000_000)
+        for metric_name, value in valuation_ratios(float(price), row).items():
+            if should_calculate(metric_name):
                 metrics.append(
                     {
                         "instrument_id": ins_id,
-                        "metric": "fcf_yield",
+                        "metric": metric_name,
                         "date": rebal_date,
-                        "value": fcf_per_share / float(price),
-                        "known_from": known_from,
-                    }
-                )
-
-        # Dividend yield
-        if should_calculate("dividend_yield"):
-            div = row.get("dividend")
-            if div and shares and shares > 0 and price and price > 0:
-                div_per_share = float(div) / (float(shares) * 1_000_000)
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "dividend_yield",
-                        "date": rebal_date,
-                        "value": div_per_share / float(price),
+                        "value": value,
                         "known_from": known_from,
                     }
                 )

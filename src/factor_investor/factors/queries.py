@@ -316,6 +316,33 @@ def _parse_factor_id(factor_id: str) -> dict:
     }
 
 
+def select_latest_ttm(pit_df: pl.DataFrame) -> pl.DataFrame:
+    """Pick the latest trailing-twelve-month value per instrument.
+
+    Only r12 and year rows are used: quarter rows hold 3-month figures, or
+    6-month figures for semi-annual reporters (Börsdata stores H1/H2 in
+    Q2/Q4), so they are not comparable. r12 wins ties with year.
+
+    Args:
+        pit_df: as_of() output with [instrument_id, period_type, period_end, value]
+
+    Returns:
+        DataFrame with [instrument_id, value]
+    """
+    period_priority = {"r12": 1, "year": 2}
+    return (
+        pit_df.filter(pl.col("period_type").is_in(list(period_priority)))
+        .with_columns(
+            pl.col("period_type").replace_strict(period_priority, return_dtype=pl.Int32).alias(
+                "priority"
+            )
+        )
+        .sort(["instrument_id", "period_end", "priority"], descending=[False, True, False])
+        .group_by("instrument_id", maintain_order=True)
+        .agg(pl.col("value").first())
+    )
+
+
 def _get_base_metric(
     metric: str,
     as_of_date: date,
@@ -362,30 +389,8 @@ def _get_base_metric(
                 )
 
                 if len(pit_df) > 0:
-                    # Filter to recent data only (post-June 2020) to avoid format inconsistencies
-                    # Older data has values already in percentage, newer in decimal format
-                    from datetime import date as date_class
-                    pit_df = pit_df.filter(pl.col("period_end") >= date_class(2020, 6, 1))
-
-                    if len(pit_df) == 0:
-                        continue
-
-                    # Prefer r12 > year > quarter for consistency
-                    period_priority = {"r12": 1, "year": 2, "quarter": 3}
-
-                    pit_df = pit_df.with_columns(
-                        pl.col("period_type").map_elements(
-                            lambda x: period_priority.get(x, 99), return_dtype=pl.Int32
-                        ).alias("priority")
-                    )
-
-                    # Get most recent period for each instrument, preferring r12
                     latest_per_instrument = (
-                        pit_df.sort(["instrument_id", "period_end", "priority"], descending=[False, True, False])
-                        .group_by("instrument_id")
-                        .agg(
-                            pl.col("value").first().alias("value"),
-                        )
+                        select_latest_ttm(pit_df)
                         .with_columns(pl.lit(month_end).alias("date"))
                         .select(["instrument_id", "date", "value"])
                     )

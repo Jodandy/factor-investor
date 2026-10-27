@@ -190,3 +190,44 @@ class TestPITTemporal:
         # Should treat as missing and use fallback
         assert known == expected, "Should use fallback for 1899 dates"
         assert is_fallback, "Should use fallback for 1899-12-30 date"
+
+    @pytest.mark.parametrize("period_type", ["year", "quarter", "r12"])
+    @pytest.mark.parametrize(
+        "report_date",
+        [
+            date(2023, 12, 31),  # Same day as period end (Börsdata placeholder)
+            date(2023, 2, 27),  # Before the period even ended
+            date(2024, 1, 9),  # 9 days after: too fast to be a real report
+        ],
+    )
+    def test_implausible_publication_date_uses_fallback(
+        self, report_date: date, period_type: str
+    ) -> None:
+        """A report needs at least min_publication_days after period end.
+
+        Börsdata has ~9% of annual reports with report_date == period_end, and
+        ~1,400 quarterly reports dated 1-11 days after. Trusting them would
+        make reports known weeks or months too early.
+        """
+        pit_service = PITService()
+        period_end = date(2023, 12, 31)
+
+        known, is_fallback = pit_service.calculate_known_from(
+            report_date=report_date, period_end=period_end, period_type=period_type
+        )
+
+        assert is_fallback
+        expected_delay = 90 if period_type == "year" else 60
+        assert known == period_end + timedelta(days=expected_delay + 1)
+
+    def test_publication_date_at_minimum_is_trusted(self) -> None:
+        pit_service = PITService()
+        period_end = date(2023, 12, 31)
+
+        known, is_fallback = pit_service.calculate_known_from(
+            report_date=date(2024, 1, 10), period_end=period_end, period_type="quarter"
+        )
+
+        assert not is_fallback
+        assert known == date(2024, 1, 11)
+

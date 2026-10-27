@@ -316,7 +316,7 @@ def build_returns(
 @app.command("build-universe")
 def build_universe(
     from_date: str = typer.Option(
-        None, "--from-date", help="Start date (YYYY-MM-DD, default: 2016-01-01)"
+        None, "--from-date", help="Start date (YYYY-MM-DD, default: 2006-01-01)"
     ),
     to_date: str = typer.Option(None, "--to-date", help="End date (YYYY-MM-DD, default: today)"),
     force_rebuild: bool = typer.Option(False, "--force", help="Clear existing data and rebuild"),
@@ -332,7 +332,7 @@ def build_universe(
     console.print("[bold]Building monthly universe...[/bold]")
 
     # Parse dates
-    start_date = date_type.fromisoformat(from_date) if from_date else date_type(2016, 1, 1)
+    start_date = date_type.fromisoformat(from_date) if from_date else date_type(2006, 1, 1)
     end_date = date_type.fromisoformat(to_date) if to_date else date_type.today()
 
     console.print(f"Date range: {start_date} to {end_date}")
@@ -375,7 +375,7 @@ def build_universe(
 @app.command("build-base-metrics")
 def build_base_metrics(
     from_date: str = typer.Option(
-        None, "--from-date", help="Start date (YYYY-MM-DD, default: 2016-01-01)"
+        None, "--from-date", help="Start date (YYYY-MM-DD, default: 2006-01-01)"
     ),
     to_date: str = typer.Option(None, "--to-date", help="End date (YYYY-MM-DD, default: today)"),
     force_rebuild: bool = typer.Option(False, "--force", help="Clear existing data and rebuild"),
@@ -405,7 +405,7 @@ def build_base_metrics(
     console.print("[bold]Building base metrics...[/bold]")
 
     # Parse dates
-    start_date = date_type.fromisoformat(from_date) if from_date else date_type(2016, 1, 1)
+    start_date = date_type.fromisoformat(from_date) if from_date else date_type(2006, 1, 1)
     end_date = date_type.fromisoformat(to_date) if to_date else date_type.today()
 
     # Parse metrics filter

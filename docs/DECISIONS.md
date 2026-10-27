@@ -573,3 +573,59 @@ The user accepted these known, minor risks rather than mitigating them now:
 2. **Split-adjusted price levels:** historical prices are back-adjusted for splits, so filters on absolute price level (e.g. `min_price = 5`) or turnover in currency use levels not seen at the time. Returns are unaffected.
 3. **Corrupted-instrument list:** partly identified from backtest outcomes (see entry above).
 
+---
+
+## 2026-10-27 | Implausible publication dates fall back to conservative delay
+
+**Decision:** `known_from` uses `report_date` only if it is at least `min_publication_days` (10, settings.toml) after `period_end`. Otherwise (and for the 1899 placeholder) the fallback delay applies: period_end + 60 days (quarter/r12) or + 90 days (year), + 1 day buffer. Applies to all report types.
+
+**Rationale:** Börsdata has `report_date == report_end_date` on ~8.7% of annual reports (~15,700), ~6,400 quarterly and ~10,900 r12 reports, plus a few hundred dated before the period ended. These are not real publication dates; trusting them made reports known 1–3 months (sometimes up to a year) early — lookahead.
+
+**Threshold (user, 10 days):** quarterly publication delay has p1 = 14 days, median 38. Spot checks of reports dated 1–7 days after period end (Admicom H1 2020 on 2020-07-01, Waystream Q2 2022 on 2022-07-07, a Swiss cantonal bank in 3 days) are clearly wrong; ~1,400 reports fall within 1–11 days. Days 12–14 (~5,500, e.g. US banks) are plausible and kept. Erring late only delays a report; erring early is lookahead.
+
+---
+
+## 2026-10-27 | Remove 2020-06 fundamentals cutoff; default start 2006
+
+**Decision:** Removed the `period_end >= 2020-06-01` filter in `factors.queries._get_base_metric`. Default start for universe and base-metric builds changed from 2016 to 2006 (20 years of prices now available).
+
+**Rationale:** The filter was added on the theory that older values were stored as percentages, based on one instrument (Quinsam Capital). Derived metrics like ROIC are computed by our own code from raw report totals, so their format cannot depend on the period. The filter discarded all fundamentals before mid-2020. To be verified on the rebuilt PIT table.
+
+---
+
+## 2026-10-27 | Report types: factors use r12 and year only
+
+**Verified against data (AAK, Kallebäck Property):**
+- **r12** flow items = sum of the last four quarters; balance sheet items = latest quarter; r12 at Q4 equals the year report. Year reports share the Q4 report date.
+- **Semi-annual reporters (~4,000 instruments, 26%)** have only Q2 and Q4 rows, holding H1 and H2 (6-month) figures. Their r12 is still correct (H1 + H2).
+- **`dividend`** in all report types is the latest announced annual DPS, carried forward; it first appears in the report that announces it, so no lookahead.
+- **r12 history** starts later than year history for some instruments (~72k year rows without r12, mostly 2005–2014), but the newest r12 is never older than the newest year report.
+- **Broken fiscal years** (25% of year rows) are handled via `report_end_date`.
+
+**Decision:** Factors use only r12 and year values (r12 preferred on ties): `factors.queries.select_latest_ttm` and `base_metrics`. Quarter rows are never used directly, since they mix 3-month and 6-month periods. Previously `_get_base_metric` picked the newest row of any type, which for 347 instruments today was a quarter row.
+
+---
+
+## 2026-10-27 | Valuation ratio units fixed
+
+**Bug:** `base_metrics` multiplied `number_of_shares` (millions) by 1,000,000 while totals (revenues, FCF, net debt, operating income) are also in millions. P/S and P/FCF were 10⁶ too large, FCF yield 10⁶ too small, EV/EBIT effectively ignored net debt, and dividend yield divided the per-share dividend by the share count again. The `< 1,000,000` sanity filter then dropped every stock with true P/S > 1. P/E and P/B were correct.
+
+**Decision:** All ratios computed in `factors.base_metrics.valuation_ratios` with market cap in millions = price × number_of_shares. Verified with AAK 2024 figures in unit tests.
+- P/E, P/B, P/S, P/FCF, EV/EBIT only for positive denominators (a negative multiple sorts as "cheapest", which is misleading).
+- FCF yield and dividend yield keep negative/zero values; non-payers get dividend yield 0 (previously missing).
+
+---
+
+## 2026-10-27 | Dividends in total returns (supersedes 2026-10-06 entry)
+
+**Bugs fixed:**
+- Dividends were only applied if the estimated ex-date was an exact trading day: 41% (32,600 of 80,452) fell on weekends and were silently dropped.
+- Dividends before 2015 were excluded (prices now go back to 2006).
+- Reports without a publication date were skipped; reports with a placeholder date (on/just after period end) put the dividend weeks too early.
+
+**Decision:**
+- Ex-date = PIT `known_from` + 30 days, using the same plausibility rules as the PIT layer (no dividend before the announcing report was known).
+- Applied on the first trading day on or after the estimated ex-date; same-day dividends summed (`compute_total_return_index`).
+- Extraction deletes and re-creates all `report_estimated` dividends, so it is idempotent.
+
+**Known limitation:** one dividend per fiscal year from the annual report. Quarterly/semi-annual payers (common in the US/UK) get the year's dividends lumped on one date, shifted later. Börsdata's dividend calendar endpoint could improve this; not yet evaluated.

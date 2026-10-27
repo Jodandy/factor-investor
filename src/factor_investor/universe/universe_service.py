@@ -50,7 +50,7 @@ class UniverseService:
         """Build universe for all month-end dates in range.
 
         Args:
-            from_date: Start date (default: 2016-01-01)
+            from_date: Start date (default: 2006-01-01)
             to_date: End date (default: today)
             force_rebuild: If True, delete existing data and rebuild
 
@@ -58,7 +58,7 @@ class UniverseService:
             Statistics from build operation
         """
         if from_date is None:
-            from_date = date(2016, 1, 1)
+            from_date = date(2006, 1, 1)
         if to_date is None:
             to_date = date.today()
 

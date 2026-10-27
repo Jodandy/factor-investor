@@ -62,7 +62,10 @@ class PITService:
         """Calculate when a report became known to the market.
 
         Priority:
-        1. Use report_date if available (and not 1899-12-30/31 placeholder)
+        1. Use report_date if plausible: not the 1899-12-30/31 placeholder and
+           at least min_publication_days after period_end (Börsdata sets
+           report_date == period_end on ~9% of annual reports; trusting it
+           would be lookahead)
         2. Fallback: period_end + delay_days + trading_day_buffer
 
         Args:
@@ -73,8 +76,10 @@ class PITService:
         Returns:
             Tuple of (known_from_date, used_fallback)
         """
-        # Filter Börsdata's "missing" indicator (1899-12-30/31)
-        if report_date and report_date.year != 1899:
+        # Filter Börsdata's "missing" indicator (1899-12-30/31) and dates too
+        # close to (or before) the period end to be real publication dates
+        earliest_plausible = period_end + timedelta(days=self.config.min_publication_days)
+        if report_date and report_date.year != 1899 and report_date >= earliest_plausible:
             # Use actual publication date + trading buffer
             known_from = report_date + timedelta(days=self.config.trading_day_buffer)
             return (known_from, False)

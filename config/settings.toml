@@ -15,6 +15,7 @@ base_currency = "SEK"
 [report_delays]
 quarterly = 60  # Period end + 60 days
 annual = 90     # Period end + 90 days
+min_publication_days = 10  # Earlier report_date is treated as missing (placeholder)
 trading_day_buffer = 1  # Additional buffer to prevent same-day trading
 
 [universe]

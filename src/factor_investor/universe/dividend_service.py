@@ -1,6 +1,7 @@
 """Service for extracting dividends from reports and building total return series."""
 
 import logging
+from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -11,9 +12,60 @@ from sqlalchemy.orm import Session
 
 from factor_investor.db import get_session
 from factor_investor.ingest.models import StockPrice
+from factor_investor.pit.service import PITService
 from factor_investor.universe.models import Dividend, TotalReturn
 
 logger = logging.getLogger(__name__)
+
+
+def compute_total_return_index(
+    prices: list[tuple[date, Decimal | None]],
+    dividends: list[tuple[date, Decimal]],
+) -> list[dict]:
+    """Build a total return index (base 100) with reinvested dividends.
+
+    TR[t] = TR[t-1] * (price[t] + div[t]) / price[t-1]
+
+    A dividend is applied on the first trading day on or after its ex-date
+    (estimated ex-dates often fall on weekends or holidays). Dividends on the
+    same trading day are summed. Invalid prices (None or <= 0) are skipped.
+
+    Args:
+        prices: (date, close) sorted by date
+        dividends: (ex_date, amount per share)
+
+    Returns:
+        Rows with date, close_price, total_return_index,
+        total_return_index_sek (None), dividend_on_date
+    """
+    valid = [(d, p) for d, p in prices if p is not None and p > 0]
+    trading_days = [d for d, _ in valid]
+
+    div_on_day: dict[date, Decimal] = {}
+    for ex_date, amount in dividends:
+        idx = bisect_left(trading_days, ex_date)
+        if idx < len(trading_days):
+            day = trading_days[idx]
+            div_on_day[day] = div_on_day.get(day, Decimal("0")) + amount
+
+    rows = []
+    tr_index = Decimal("100.0")
+    prev_price: Decimal | None = None
+    for trade_date, close_price in valid:
+        dividend = div_on_day.get(trade_date, Decimal("0"))
+        if prev_price is not None:
+            tr_index = tr_index * (close_price + dividend) / prev_price
+        prev_price = close_price
+        rows.append(
+            {
+                "date": trade_date,
+                "close_price": close_price,
+                "total_return_index": tr_index,
+                "total_return_index_sek": None,  # Will be filled by FX service later
+                "dividend_on_date": dividend if dividend > 0 else None,
+            }
+        )
+    return rows
 
 
 @dataclass
@@ -32,13 +84,27 @@ class DividendService:
 
     def __init__(self) -> None:
         """Initialize dividend service."""
-        self.estimation_lag_days = 30  # report_date + 30 days for estimated ex-date
+        self.estimation_lag_days = 30  # known_from + 30 days for estimated ex-date
+        self.pit_service = PITService()
+
+    def estimate_ex_date(self, report_date: date | None, period_end: date) -> date:
+        """Estimate ex-date as the report's known_from + 30 days.
+
+        Uses the PIT layer's known_from, so placeholder or missing publication
+        dates fall back to the same conservative delay: a dividend is never
+        paid before the report announcing it could have been known.
+        """
+        known_from, _ = self.pit_service.calculate_known_from(report_date, period_end, "year")
+        return known_from + timedelta(days=self.estimation_lag_days)
 
     def extract_dividends_from_reports(self) -> int:
-        """Extract dividends from reports and estimate ex-dates.
+        """Extract dividends from annual reports and estimate ex-dates.
 
-        Reads dividend amounts from annual reports and estimates ex-date as
-        report_date + 30 days (typical Nordic pattern from report to ex-date).
+        Replaces all previously estimated dividends (source 'report_estimated')
+        so the extraction is idempotent and picks up rule changes.
+
+        Known limitation: one dividend per fiscal year at the estimated date,
+        so companies paying quarterly get their year's dividends lumped.
 
         Returns:
             Number of dividends extracted and inserted
@@ -46,6 +112,8 @@ class DividendService:
         logger.info("Extracting dividends from reports...")
 
         with get_session() as session:
+            session.execute(delete(Dividend).where(Dividend.source == "report_estimated"))
+
             # Get annual dividends from reports
             query = text("""
                 SELECT
@@ -57,13 +125,6 @@ class DividendService:
                 FROM reports_year r
                 JOIN instruments i ON r.ins_id = i.ins_id
                 WHERE r.dividend IS NOT NULL AND r.dividend > 0
-                  AND r.report_date IS NOT NULL
-                  AND r.report_date >= '2015-01-01'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM dividends d
-                      WHERE d.instrument_id = r.ins_id
-                        AND d.ex_date BETWEEN r.report_date AND r.report_date + INTERVAL '90 days'
-                  )
                 ORDER BY r.ins_id, r.report_end_date
             """)
 
@@ -72,10 +133,9 @@ class DividendService:
 
             dividends = []
             for row in rows:
-                ins_id, _period_end, report_date, div_amount, currency = row
+                ins_id, period_end, report_date, div_amount, currency = row
 
-                # Estimate ex-date as report_date + 30 days
-                ex_date = report_date + timedelta(days=self.estimation_lag_days)
+                ex_date = self.estimate_ex_date(report_date, period_end)
 
                 dividends.append(
                     {
@@ -244,46 +304,13 @@ class DividendService:
         if not price_rows:
             return (0, False)
 
-        # Create dividend lookup dict from pre-loaded data
-        div_dict: dict[date, Decimal] = {}
-        for ex_date, amount in dividends:
-            div_dict[ex_date] = amount
-
-        has_dividends = len(div_dict) > 0
-
-        # Calculate TR index
-        tr_rows = []
-        tr_index = Decimal("100.0")  # Base 100 on first date
-
-        for i, (trade_date, close_price) in enumerate(price_rows):
-            if close_price is None or close_price <= 0:
-                continue  # Skip invalid prices
-
-            dividend = div_dict.get(trade_date, Decimal("0"))
-
-            if i == 0:
-                # First date: base index = 100
-                tr_index = Decimal("100.0")
-            else:
-                # Calculate return: (price[t] + div[t]) / price[t-1]
-                prev_price = price_rows[i - 1][1]
-                if prev_price and prev_price > 0:
-                    total_return = (close_price + dividend) / prev_price
-                    tr_index = tr_index * total_return
-                else:
-                    # Can't calculate if previous price is missing/invalid
-                    continue
-
-            tr_rows.append(
-                {
-                    "instrument_id": ins_id,
-                    "date": trade_date,
-                    "close_price": close_price,
-                    "total_return_index": tr_index,
-                    "total_return_index_sek": None,  # Will be filled by FX service later
-                    "dividend_on_date": dividend if dividend > 0 else None,
-                }
+        tr_rows = [
+            {"instrument_id": ins_id, **row}
+            for row in compute_total_return_index(
+                [(row[0], row[1]) for row in price_rows], dividends
             )
+        ]
+        has_dividends = any(row["dividend_on_date"] is not None for row in tr_rows)
 
         # Batch insert
         if tr_rows:

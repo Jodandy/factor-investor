@@ -25,10 +25,10 @@ uv run factor-investor build-pit
 uv run factor-investor build-returns
 
 # 6. Build investable universe (~15-20 minutes)
-uv run factor-investor build-universe --from-date 2016-01-01
+uv run factor-investor build-universe --from-date 2006-01-01
 
 # 7. Build base metrics (factors) (~90 minutes)
-uv run factor-investor build-base-metrics --from-date 2016-01-01
+uv run factor-investor build-base-metrics --from-date 2006-01-01
 ```
 
 **Total time:** ~4-5 hours (one-time setup)
@@ -126,7 +126,7 @@ uv run factor-investor build-returns
 uv run factor-investor build-universe --from-date 2024-07-01
 
 # Build all base metrics (initial)
-uv run factor-investor build-base-metrics --from-date 2016-01-01
+uv run factor-investor build-base-metrics --from-date 2006-01-01
 
 # Add only specific metrics (incremental - FAST!)
 uv run factor-investor build-base-metrics --metrics pe_ratio,pb_ratio
@@ -187,7 +187,7 @@ uv run factor-investor sync-reports
 # 4. Run all build commands (in order)
 uv run factor-investor build-pit
 uv run factor-investor build-returns
-uv run factor-investor build-universe --from-date 2016-01-01
+uv run factor-investor build-universe --from-date 2006-01-01
 
 # Done! (~2-3 hours total)
 ```

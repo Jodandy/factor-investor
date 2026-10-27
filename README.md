@@ -36,7 +36,7 @@ uv run factor-investor sync-prices
 uv run factor-investor sync-reports
 uv run factor-investor build-pit
 uv run factor-investor build-returns
-uv run factor-investor build-universe --from-date 2016-01-01
+uv run factor-investor build-universe --from-date 2006-01-01
 
 # Regular updates (monthly, ~1 hour)
 # See docs/SYNC_GUIDE.md for details

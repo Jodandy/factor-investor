@@ -85,7 +85,7 @@ sync-derived:
 	@echo "Building derived data tables..."
 	uv run factor-investor build-pit
 	uv run factor-investor build-returns
-	uv run factor-investor build-universe --from-date 2016-01-01
+	uv run factor-investor build-universe --from-date 2006-01-01
 	@echo "✓ Derived data build complete"
 
 sync-update:

@@ -42,7 +42,7 @@ class FactorService:
         Similar to build_universe() - iterate over month-end dates.
 
         Args:
-            from_date: Start date (default: 2016-01-01)
+            from_date: Start date (default: 2006-01-01)
             to_date: End date (default: today)
             force_rebuild: Delete existing data and rebuild
             metrics: Optional list of specific metrics to build (e.g., ['ev_ebitda', 'operating_cash_flow']).
@@ -52,7 +52,7 @@ class FactorService:
             Build statistics
         """
         if from_date is None:
-            from_date = date(2016, 1, 1)
+            from_date = date(2006, 1, 1)
         if to_date is None:
             to_date = date.today()
 
