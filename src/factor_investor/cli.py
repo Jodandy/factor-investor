@@ -27,6 +27,8 @@ def setup_logging(verbose: bool = False) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    # httpx logs full request URLs, which include the Börsdata authKey
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 # --- Ingest commands ---

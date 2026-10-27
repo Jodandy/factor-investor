@@ -245,7 +245,7 @@ Initial sync completed:
 | Mean | 6.7 |
 
 **Observations:**
-- Maximum history is **10 years** (API limitation)
+- Maximum history is **10 years** — but only because the sync did not pass `maxCount`. Verified 2026-10-27: without parameters (or with only `from`) the endpoint returns 10 years; with `maxCount` it returns 20 years (capped at 20 even with `maxCount=20000`). Sync now requests full history; the figures in this section predate that fix and need re-running.
 - 25% of instruments have <3.3 years of data
 - 10% have <1 year of data
 

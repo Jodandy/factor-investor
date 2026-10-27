@@ -29,6 +29,10 @@ from factor_investor.ingest.models import (
 
 logger = logging.getLogger(__name__)
 
+# Börsdata returns only 10 years of prices unless maxCount is given; the API
+# caps history at 20 years, so this requests everything available.
+PRICE_HISTORY_MAX_COUNT = 20 * 365
+
 
 def parse_date(date_str: str | None) -> date | None:
     """Parse date string from API response."""
@@ -268,6 +272,8 @@ class SyncService:
         max_count: int | None = None,
     ) -> int:
         """Sync prices for a single instrument using bulk insert."""
+        if from_date is None and max_count is None:
+            max_count = PRICE_HISTORY_MAX_COUNT
         data = self.client.get_stock_prices(ins_id, from_date=from_date, max_count=max_count)
         prices = data.get("stockPricesList", [])
 
