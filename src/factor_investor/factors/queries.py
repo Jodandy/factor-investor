@@ -35,8 +35,11 @@ from factor_investor.factors.models import FundamentalMetric, PriceMetric
 
 logger = logging.getLogger(__name__)
 
-# Cache directory for transformed/normalized factors
-CACHE_DIR = Path("data/factors/cache")
+# Cache directory for transformed/normalized factors. Bump the version when
+# factor logic changes so stale values are never read. The cache must also be
+# cleared after rebuilding base data (clear_cache()).
+CACHE_VERSION = 2
+CACHE_DIR = Path(f"data/factors/cache/v{CACHE_VERSION}")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -57,7 +60,8 @@ def get_factor(
     Args:
         factor_id: Factor ID (e.g., "roic_mean_5y_pct")
         as_of_date: Date to get factor values for
-        instrument_ids: Optional filter for specific instruments
+        instrument_ids: Optional filter applied to the result. Values are always
+            computed (and normalized) over the full cross-section.
         use_cache: If False, always recalculate (for testing)
 
     Returns:
@@ -99,8 +103,9 @@ def get_factor(
         f"window={window_years}, norm={normalization}"
     )
 
-    # Load base metric from DB
-    base_df = _get_base_metric(base_metric, as_of_date, instrument_ids)
+    # Load base metric for all instruments: normalization is cross-sectional,
+    # and the cache must hold the full cross-section
+    base_df = _get_base_metric(base_metric, as_of_date)
 
     if len(base_df) == 0:
         logger.warning(f"No base metric data for {base_metric} @ {as_of_date}")
@@ -156,6 +161,9 @@ def get_factor(
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         result_df.write_parquet(cache_path)
         logger.debug(f"  Cached to {cache_path}")
+
+    if instrument_ids:
+        result_df = result_df.filter(pl.col("instrument_id").is_in(instrument_ids))
 
     return result_df
 

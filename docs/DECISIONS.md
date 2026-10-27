@@ -123,12 +123,7 @@ NOPAT = operating_income * (1 - effective_tax_rate)
 invested_capital = total_equity + net_debt
 ROIC = NOPAT / invested_capital
 ```
-- Returns None if:
-  - Any input is NULL
-  - profit_before_tax ≤ 0 (can't calculate tax rate)
-  - effective_tax_rate < 0 or > 1 (unreasonable)
-  - invested_capital ≤ 0
-- Tax rate is clamped to [0, 1] for validity
+- *Superseded 2026-10-27 (see "ROIC in loss years"):* unusable tax rates fall back to 22%, operating losses give negative ROIC; None only if operating income or invested capital is missing, or invested capital ≤ 0. Pre-tax variant `roic_pretax` added.
 
 **Gross Margin**
 ```
@@ -629,3 +624,48 @@ The user accepted these known, minor risks rather than mitigating them now:
 - Extraction deletes and re-creates all `report_estimated` dividends, so it is idempotent.
 
 **Known limitation:** one dividend per fiscal year from the annual report. Quarterly/semi-annual payers (common in the US/UK) get the year's dividends lumped on one date, shifted later. Börsdata's dividend calendar endpoint could improve this; not yet evaluated.
+
+---
+
+## 2026-10-27 | Performance metrics annualize by date span
+
+**Bug:** metrics assumed 252 rows per year, but the backtest calendar is the union of all markets (~365 rows/year when some market trades on weekends). A 5-year backtest counted as 7.25 years: CAGR 4.2% instead of 6.2% in the old report.
+
+**Decision:** `n_years` = calendar span / 365.25; `periods_per_year` = rows / n_years, used for annualized return, volatility, downside volatility, Omega threshold and all benchmark metrics. Zero-return rows on non-trading days dilute daily variance by the same factor, so annualized volatility stays consistent (tested with business-day vs calendar-day series).
+
+---
+
+## 2026-10-27 | Price metric lookbacks
+
+**Bugs:** `momentum_12_1m` was the plain 12-month return (used the last value instead of the value one month back). All lookbacks were one day short (21 rows back = 20 trading days), and 12-month metrics needed 250 rows from a 365-day query window, which often had fewer.
+
+**Decision:** `price_metrics_from_series`: lookbacks in the instrument's own trading days (1m = 21, 3m = 63, 6m = 126, 12m = 252), a return over N days compares tr[-1] with tr[-(N+1)]; 12-1 momentum = tr[-22] / tr[-253] − 1. Query window 400 calendar days.
+
+---
+
+## 2026-10-27 | Windowed transformations require full window coverage
+
+**Bug:** mean/median/min/max/stability_cv/percentile_history required only N data points for an N-year window (trend required 3). With monthly samples, a "5-year mean" was computed from 5 months.
+
+**Decision:** the earliest value in the window must be within 45 days of the window start (monthly grid tolerance); otherwise no value (NaN) for that date, as WORK_ORDER fas 4 allows. CAGR already required the full span. Strategies targeting young companies should use shorter windows explicitly.
+
+---
+
+## 2026-10-27 | Factor cache holds the full cross-section
+
+**Bug:** `get_factor(..., instrument_ids=subset)` computed and normalized over the subset only, then cached that as the factor for the date. Percentiles were relative to the subset, and later full requests got the subset.
+
+**Decision:** always compute over all instruments, cache the full result, filter on return. Cache path is versioned (`data/factors/cache/v2`) so values from earlier logic are never read; the cache must be cleared after rebuilding base data.
+
+---
+
+## 2026-10-27 | ROIC in loss years; add pre-tax ROIC
+
+**Problem:** ROIC was None whenever profit before tax ≤ 0 or the effective tax rate fell outside [0, 1]. Loss years disappeared, so multi-year ROIC averages only included good years and flattered unstable companies.
+
+**Decision (user: keep both as separate metrics):**
+- `roic` (after-tax): effective tax rate when computable, otherwise `DEFAULT_TAX_RATE` = 22%. Operating losses: NOPAT = operating income (no tax shield) → negative ROIC.
+- `roic_pretax`: operating income / (equity + net debt). No tax-rate noise, comparable across tax regimes (close to Greenblatt's return on capital).
+- Both None only when operating income or invested capital is missing, or invested capital ≤ 0 (undefined).
+
+**Alternatives considered:** pre-tax only; after-tax only with default rate; keep None (rejected: survivorship-like bias within the factor).

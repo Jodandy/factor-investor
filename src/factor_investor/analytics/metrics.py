@@ -171,6 +171,24 @@ class PerformanceMetrics:
     """Ratio of 95th to 5th percentile returns"""
 
 
+def _annualization(dates: list) -> tuple[float, float]:
+    """Years covered and return rows per year, from the actual date span.
+
+    The backtest calendar is the union of all markets, so rows per year vary
+    (~252 to ~365). Assuming 252 overstated the period length and understated
+    CAGR. Zero-return rows on non-trading days dilute daily variance by the
+    same factor they increase periods_per_year, so annualized volatility is
+    consistent.
+
+    Returns:
+        (n_years, periods_per_year)
+    """
+    n_years = (dates[-1] - dates[0]).days / 365.25 if len(dates) > 1 else 0.0
+    if n_years <= 0:
+        return (len(dates) / 252, 252.0)
+    return (n_years, (len(dates) - 1) / n_years)
+
+
 def calculate_performance_metrics(
     returns_df: pl.DataFrame,
     trades_df: pl.DataFrame | None = None,
@@ -208,7 +226,7 @@ def calculate_performance_metrics(
     returns = returns_df["portfolio_return"].to_numpy()
     dates = returns_df["date"].to_list()
     n_days = len(returns)
-    n_years = n_days / 252  # Approximate trading days per year
+    n_years, periods_per_year = _annualization(dates)
 
     # === CUMULATIVE CALCULATIONS (used by multiple metrics) ===
     cumulative = np.cumprod(1 + returns)
@@ -218,14 +236,14 @@ def calculate_performance_metrics(
     # === RETURNS ===
     total_return = cumulative[-1] - 1
     cagr = (1 + total_return) ** (1 / n_years) - 1 if n_years > 0 else 0
-    annualized_return = float(np.mean(returns) * 252)
+    annualized_return = float(np.mean(returns) * periods_per_year)
 
     # === RISK ===
-    volatility = float(np.std(returns, ddof=1) * np.sqrt(252))
+    volatility = float(np.std(returns, ddof=1) * np.sqrt(periods_per_year))
 
     downside_returns = returns[returns < 0]
     downside_vol = (
-        float(np.std(downside_returns, ddof=1) * np.sqrt(252))
+        float(np.std(downside_returns, ddof=1) * np.sqrt(periods_per_year))
         if len(downside_returns) > 0
         else volatility
     )
@@ -243,7 +261,7 @@ def calculate_performance_metrics(
     calmar_ratio = cagr / abs(max_dd) if max_dd != 0 else 0.0
 
     # Omega ratio (probability weighted gains vs losses)
-    omega_ratio = _calculate_omega_ratio(returns, risk_free_rate / 252)
+    omega_ratio = _calculate_omega_ratio(returns, risk_free_rate / periods_per_year)
 
     # Ulcer index (RMS of drawdown)
     ulcer_index = float(np.sqrt(np.mean(drawdown**2)))
@@ -286,7 +304,7 @@ def calculate_performance_metrics(
 
     if benchmark_returns is not None and len(benchmark_returns) > 0:
         benchmark_metrics = _calculate_benchmark_metrics(
-            returns_df, benchmark_returns, risk_free_rate
+            returns_df, benchmark_returns, risk_free_rate, periods_per_year
         )
         beta = benchmark_metrics["beta"]
         alpha = benchmark_metrics["alpha"]
@@ -377,7 +395,7 @@ def _calculate_omega_ratio(returns: np.ndarray, threshold: float) -> float:
 
     Args:
         returns: Daily returns array
-        threshold: Threshold return (typically risk-free rate / 252)
+        threshold: Threshold return (typically risk-free rate / periods per year)
 
     Returns:
         Omega ratio
@@ -424,6 +442,7 @@ def _calculate_benchmark_metrics(
     returns_df: pl.DataFrame,
     benchmark_returns: pl.DataFrame,
     risk_free_rate: float,
+    periods_per_year: float,
 ) -> dict:
     """Calculate metrics relative to benchmark.
 
@@ -431,6 +450,7 @@ def _calculate_benchmark_metrics(
         returns_df: Portfolio returns [date, portfolio_return]
         benchmark_returns: Benchmark returns [date, benchmark_return]
         risk_free_rate: Annual risk-free rate
+        periods_per_year: Return rows per year (see _annualization)
 
     Returns:
         Dict with beta, alpha, tracking_error, etc.
@@ -461,17 +481,17 @@ def _calculate_benchmark_metrics(
     beta = covariance / bench_variance if bench_variance > 0 else None
 
     # Annualized alpha
-    port_cagr = (np.prod(1 + port_returns)) ** (252 / len(port_returns)) - 1
-    bench_cagr = (np.prod(1 + bench_returns)) ** (252 / len(bench_returns)) - 1
+    port_cagr = (np.prod(1 + port_returns)) ** (periods_per_year / len(port_returns)) - 1
+    bench_cagr = (np.prod(1 + bench_returns)) ** (periods_per_year / len(bench_returns)) - 1
     alpha = port_cagr - (risk_free_rate + beta * (bench_cagr - risk_free_rate)) if beta is not None else None
 
     # Tracking error
     active_returns = port_returns - bench_returns
-    tracking_error = float(np.std(active_returns, ddof=1) * np.sqrt(252))
+    tracking_error = float(np.std(active_returns, ddof=1) * np.sqrt(periods_per_year))
 
     # Information ratio
     information_ratio = (
-        float(np.mean(active_returns) * 252 / tracking_error)
+        float(np.mean(active_returns) * periods_per_year / tracking_error)
         if tracking_error > 0
         else None
     )

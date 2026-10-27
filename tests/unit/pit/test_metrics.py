@@ -3,6 +3,8 @@
 from decimal import Decimal
 
 from factor_investor.pit.metrics import (
+    DEFAULT_TAX_RATE,
+    DERIVED_METRICS,
     MetricInputs,
     calculate_asset_turnover,
     calculate_current_ratio,
@@ -16,6 +18,7 @@ from factor_investor.pit.metrics import (
     calculate_roa,
     calculate_roe,
     calculate_roic,
+    calculate_roic_pretax,
     calculate_solvency,
 )
 
@@ -89,22 +92,57 @@ class TestProfitabilityMetrics:
         assert result is not None
         assert abs(result - Decimal("0.106666")) < Decimal("0.00001")
 
-    def test_roic_invalid_tax_rate(self) -> None:
-        """Test ROIC returns None when tax rate is invalid."""
-        # Tax rate > 1 (profit > profit_before_tax)
+    def test_roic_uses_default_tax_rate_when_effective_rate_unusable(self) -> None:
+        """Missing ROIC in such years made multi-year averages skip bad years."""
+        # Effective tax rate negative (profit > profit_before_tax)
         inputs: MetricInputs = {
             "operating_income": Decimal("200"),
-            "profit_to_equity_holders": Decimal("200"),  # > profit_before_tax
+            "profit_to_equity_holders": Decimal("200"),
             "profit_before_tax": Decimal("150"),
             "total_equity": Decimal("1000"),
             "net_debt": Decimal("500"),
         }
+        expected = Decimal("200") * (1 - DEFAULT_TAX_RATE) / Decimal("1500")
+        assert calculate_roic(inputs) == expected
 
-        assert calculate_roic(inputs) is None
-
-        # Negative profit_before_tax
+        # Pre-tax loss from financial items, operating profit still positive
         inputs["profit_before_tax"] = Decimal("-10")
+        assert calculate_roic(inputs) == expected
+
+    def test_roic_operating_loss_is_negative_without_tax_shield(self) -> None:
+        inputs: MetricInputs = {
+            "operating_income": Decimal("-300"),
+            "profit_to_equity_holders": Decimal("-320"),
+            "profit_before_tax": Decimal("-320"),
+            "total_equity": Decimal("1000"),
+            "net_debt": Decimal("500"),
+        }
+        assert calculate_roic(inputs) == Decimal("-300") / Decimal("1500")
+
+    def test_roic_undefined_without_invested_capital(self) -> None:
+        inputs: MetricInputs = {
+            "operating_income": Decimal("200"),
+            "profit_to_equity_holders": Decimal("120"),
+            "profit_before_tax": Decimal("150"),
+            "total_equity": Decimal("-600"),
+            "net_debt": Decimal("500"),
+        }
         assert calculate_roic(inputs) is None
+        assert calculate_roic_pretax(inputs) is None
+
+    def test_roic_pretax(self) -> None:
+        inputs: MetricInputs = {
+            "operating_income": Decimal("-300"),
+            "total_equity": Decimal("1000"),
+            "net_debt": Decimal("500"),
+        }
+        assert calculate_roic_pretax(inputs) == Decimal("-0.2")
+
+        inputs["operating_income"] = Decimal("300")
+        assert calculate_roic_pretax(inputs) == Decimal("0.2")
+
+    def test_roic_pretax_registered(self) -> None:
+        assert DERIVED_METRICS["roic_pretax"] is calculate_roic_pretax
 
     def test_gross_margin_happy_path(self) -> None:
         """Test gross margin calculation."""

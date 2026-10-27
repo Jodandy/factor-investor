@@ -129,6 +129,7 @@ def calculate_fundamental_metrics(
         # Profitability metrics (pass through)
         "roe",
         "roic",
+        "roic_pretax",
         "roa",
         "gross_margin",
         "operating_margin",
@@ -306,7 +307,7 @@ def calculate_fundamental_metrics(
         # Pass-through metrics from PIT
         passthrough_metrics = [
             # Profitability
-            "roe", "roic", "roa",
+            "roe", "roic", "roic_pretax", "roa",
             "gross_margin", "operating_margin", "net_margin", "fcf_margin",
             "asset_turnover", "current_ratio", "net_debt_to_ebit", "solvency",
             # For Piotroski F-score
@@ -454,12 +455,12 @@ def calculate_price_metrics(
             logger.warning(f"No instruments with price data for {rebal_date}")
             return metrics
 
-    # Get total returns for past year
+    # Get total returns for past year (400 calendar days covers 253 trading days)
     from factor_investor.universe.queries import get_total_returns
 
     returns_df = get_total_returns(
         instrument_ids=instrument_ids,
-        from_date=rebal_date - timedelta(days=365),
+        from_date=rebal_date - timedelta(days=400),
         to_date=rebal_date,
     )
 
@@ -469,147 +470,72 @@ def calculate_price_metrics(
 
     # Calculate per instrument
     for ins_id in returns_df["instrument_id"].unique():
-        ins_returns = returns_df.filter(pl.col("instrument_id") == ins_id).sort("date")
-
-        if len(ins_returns) == 0:
-            continue
-
-        try:
-            # 1-month return
-            if should_calculate("return_1m") and len(ins_returns) >= 21:
-                tr_last = ins_returns["total_return_index"].item(-1)
-                tr_21_ago = ins_returns["total_return_index"].item(-21)
-                ret_1m = (tr_last / tr_21_ago) - 1
+        tr = (
+            returns_df.filter(pl.col("instrument_id") == ins_id)
+            .sort("date")["total_return_index"]
+            .drop_nulls()
+        )
+        for metric_name, value in price_metrics_from_series(tr).items():
+            if should_calculate(metric_name):
                 metrics.append(
-                    {"instrument_id": ins_id, "metric": "return_1m", "date": rebal_date, "value": float(ret_1m)}
+                    {"instrument_id": ins_id, "metric": metric_name, "date": rebal_date, "value": value}
                 )
-
-            # 3-month return
-            if should_calculate("return_3m") and len(ins_returns) >= 63:
-                tr_last = ins_returns["total_return_index"].item(-1)
-                tr_63_ago = ins_returns["total_return_index"].item(-63)
-                ret_3m = (tr_last / tr_63_ago) - 1
-                metrics.append(
-                    {"instrument_id": ins_id, "metric": "return_3m", "date": rebal_date, "value": float(ret_3m)}
-                )
-
-            # 6-month return
-            if should_calculate("return_6m") and len(ins_returns) >= 126:
-                tr_last = ins_returns["total_return_index"].item(-1)
-                tr_126_ago = ins_returns["total_return_index"].item(-126)
-                ret_6m = (tr_last / tr_126_ago) - 1
-                metrics.append(
-                    {"instrument_id": ins_id, "metric": "return_6m", "date": rebal_date, "value": float(ret_6m)}
-                )
-
-            # 12-month return
-            if should_calculate("return_12m") and len(ins_returns) >= 250:
-                tr_last = ins_returns["total_return_index"].item(-1)
-                tr_250_ago = ins_returns["total_return_index"].item(-250)
-                ret_12m = (tr_last / tr_250_ago) - 1
-                metrics.append(
-                    {"instrument_id": ins_id, "metric": "return_12m", "date": rebal_date, "value": float(ret_12m)}
-                )
-
-            # 12-1 month momentum
-            if should_calculate("momentum_12_1m") and len(ins_returns) >= 250:
-                tr_21_ago = ins_returns["total_return_index"].item(-1)
-                tr_250_ago = ins_returns["total_return_index"].item(-250)
-                momentum = (tr_21_ago / tr_250_ago) - 1
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "momentum_12_1m",
-                        "date": rebal_date,
-                        "value": float(momentum),
-                    }
-                )
-
-            # Volatility 60d
-            if should_calculate("volatility_60d") and len(ins_returns) >= 60:
-                tr_60d = ins_returns.tail(60)["total_return_index"]
-                daily_returns = tr_60d.pct_change().drop_nulls()
-                vol_60d = daily_returns.std() * (250**0.5)  # Annualized
-                metrics.append(
-                    {"instrument_id": ins_id, "metric": "volatility_60d", "date": rebal_date, "value": float(vol_60d)}
-                )
-
-            # Volatility 250d
-            if should_calculate("volatility_250d") and len(ins_returns) >= 250:
-                tr_250d = ins_returns.tail(250)["total_return_index"]
-                daily_returns = tr_250d.pct_change().drop_nulls()
-                vol_250d = daily_returns.std() * (250**0.5)
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "volatility_250d",
-                        "date": rebal_date,
-                        "value": float(vol_250d),
-                    }
-                )
-
-            # Max drawdown 1y
-            if should_calculate("max_drawdown_1y") and len(ins_returns) >= 250:
-                tr_index = ins_returns.tail(250)["total_return_index"]
-                running_max = tr_index.cum_max()
-                drawdown = (tr_index / running_max) - 1
-                max_dd = float(drawdown.min())
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "max_drawdown_1y",
-                        "date": rebal_date,
-                        "value": max_dd,
-                    }
-                )
-
-            # Distance to 50d MA
-            if should_calculate("distance_ma_50d") and len(ins_returns) >= 50:
-                tr_50d = ins_returns.tail(50)["total_return_index"]
-                ma_50d = float(tr_50d.mean())
-                current_price = ins_returns["total_return_index"].item(-1)
-                distance = (current_price / ma_50d) - 1
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "distance_ma_50d",
-                        "date": rebal_date,
-                        "value": float(distance),
-                    }
-                )
-
-            # Distance to 200d MA
-            if should_calculate("distance_ma_200d") and len(ins_returns) >= 200:
-                tr_200d = ins_returns.tail(200)["total_return_index"]
-                ma_200d = float(tr_200d.mean())
-                current_price = ins_returns["total_return_index"].item(-1)
-                distance = (current_price / ma_200d) - 1
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "distance_ma_200d",
-                        "date": rebal_date,
-                        "value": float(distance),
-                    }
-                )
-
-            # Distance to 52-week high
-            if should_calculate("distance_52w_high") and len(ins_returns) >= 250:
-                high_52w = float(ins_returns.tail(250)["total_return_index"].max())
-                current_price = ins_returns["total_return_index"].item(-1)
-                distance = (current_price / high_52w) - 1
-                metrics.append(
-                    {
-                        "instrument_id": ins_id,
-                        "metric": "distance_52w_high",
-                        "date": rebal_date,
-                        "value": float(distance),
-                    }
-                )
-
-        except Exception as e:
-            logger.error(f"Error calculating price metrics for instrument {ins_id} on {rebal_date}: {e}")
-            continue
 
     logger.debug(f"Calculated {len(metrics)} price metrics for {rebal_date}")
+    return metrics
+
+
+# Lookbacks in the instrument's own trading days
+MONTH = 21
+YEAR = 252
+
+
+def price_metrics_from_series(tr: pl.Series) -> dict[str, float]:
+    """Price metrics from a total return index, oldest first, ending at the
+    calculation date. Metrics needing more history than available are omitted.
+
+    A return over N trading days compares tr[-1] with tr[-(N+1)].
+
+    Args:
+        tr: Total return index values (one per trading day)
+
+    Returns:
+        Dict of metric name -> value
+    """
+    n = len(tr)
+    metrics: dict[str, float] = {}
+    if n == 0:
+        return metrics
+    last = float(tr[-1])
+
+    def back(days: int) -> float:
+        return float(tr[-(days + 1)])
+
+    for name, days in [
+        ("return_1m", MONTH),
+        ("return_3m", 3 * MONTH),
+        ("return_6m", 6 * MONTH),
+        ("return_12m", YEAR),
+    ]:
+        if n > days:
+            metrics[name] = last / back(days) - 1
+
+    # 12-1 momentum: 12-month return excluding the most recent month
+    if n > YEAR:
+        metrics["momentum_12_1m"] = back(MONTH) / back(YEAR) - 1
+
+    for name, days in [("volatility_60d", 60), ("volatility_250d", 250)]:
+        if n > days:
+            daily = tr.tail(days + 1).pct_change().drop_nulls()
+            metrics[name] = float(daily.std()) * (YEAR**0.5)
+
+    if n > YEAR:
+        window = tr.tail(YEAR + 1)
+        metrics["max_drawdown_1y"] = float((window / window.cum_max() - 1).min())
+        metrics["distance_52w_high"] = last / float(window.max()) - 1
+
+    for name, days in [("distance_ma_50d", 50), ("distance_ma_200d", 200)]:
+        if n >= days:
+            metrics[name] = last / float(tr.tail(days).mean()) - 1
+
     return metrics

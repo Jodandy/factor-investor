@@ -55,6 +55,10 @@ class MetricInputs(TypedDict, total=False):
     dividend: Decimal | None
 
 
+# Used for after-tax ROIC when the effective tax rate cannot be computed
+# (loss before tax, or effective rate outside [0, 1])
+DEFAULT_TAX_RATE = Decimal("0.22")
+
 # --- Profitability Metrics ---
 
 
@@ -94,55 +98,73 @@ def calculate_roa(inputs: MetricInputs) -> Decimal | None:
     return profit / assets
 
 
+def _invested_capital(inputs: MetricInputs) -> Decimal | None:
+    """total_equity + net_debt, or None if missing or not positive."""
+    equity = inputs.get("total_equity")
+    net_debt = inputs.get("net_debt")
+    if equity is None or net_debt is None:
+        return None
+    invested_capital = equity + net_debt
+    return invested_capital if invested_capital > 0 else None
+
+
 def calculate_roic(inputs: MetricInputs) -> Decimal | None:
-    """Calculate Return on Invested Capital (ROIC).
+    """Calculate after-tax Return on Invested Capital (ROIC).
 
     Formula: NOPAT / invested_capital
 
     Where:
         effective_tax_rate = 1 - (profit_to_equity_holders / profit_before_tax)
-        NOPAT = operating_income * (1 - effective_tax_rate)
+            if profit_before_tax > 0 and the rate is within [0, 1],
+            otherwise DEFAULT_TAX_RATE
+        NOPAT = operating_income * (1 - tax_rate) if operating_income > 0,
+            otherwise operating_income (no tax shield on operating losses)
         invested_capital = total_equity + net_debt
+
+    Loss years give a negative ROIC rather than None, so multi-year averages
+    do not silently skip bad years.
 
     Returns:
         ROIC as decimal (e.g., 0.12 for 12%)
-        None if inputs invalid or calculation fails
+        None if operating income or invested capital is missing, or
+        invested capital <= 0 (ROIC undefined)
     """
     operating_income = inputs.get("operating_income")
+    invested_capital = _invested_capital(inputs)
+    if operating_income is None or invested_capital is None:
+        return None
+
+    if operating_income <= 0:
+        return operating_income / invested_capital
+
+    tax_rate = DEFAULT_TAX_RATE
     profit = inputs.get("profit_to_equity_holders")
     profit_before_tax = inputs.get("profit_before_tax")
-    equity = inputs.get("total_equity")
-    net_debt = inputs.get("net_debt")
+    if profit is not None and profit_before_tax is not None and profit_before_tax > 0:
+        effective_tax_rate = 1 - (profit / profit_before_tax)
+        if 0 <= effective_tax_rate <= 1:
+            tax_rate = effective_tax_rate
 
-    if (
-        operating_income is None
-        or profit is None
-        or profit_before_tax is None
-        or equity is None
-        or net_debt is None
-    ):
+    return operating_income * (1 - tax_rate) / invested_capital
+
+
+def calculate_roic_pretax(inputs: MetricInputs) -> Decimal | None:
+    """Calculate pre-tax Return on Invested Capital.
+
+    Formula: operating_income / (total_equity + net_debt)
+
+    Free of tax-rate noise and comparable across tax regimes. Operating losses
+    give a negative value.
+
+    Returns:
+        Pre-tax ROIC as decimal
+        None if inputs missing or invested capital <= 0
+    """
+    operating_income = inputs.get("operating_income")
+    invested_capital = _invested_capital(inputs)
+    if operating_income is None or invested_capital is None:
         return None
-
-    # Calculate effective tax rate
-    if profit_before_tax <= 0:
-        return None  # Can't calculate tax rate
-
-    effective_tax_rate = 1 - (profit / profit_before_tax)
-
-    # Clamp tax rate to reasonable range [0, 1]
-    if effective_tax_rate < 0 or effective_tax_rate > 1:
-        return None
-
-    # Calculate NOPAT
-    nopat = operating_income * (1 - effective_tax_rate)
-
-    # Calculate invested capital
-    invested_capital = equity + net_debt
-
-    if invested_capital <= 0:
-        return None
-
-    return nopat / invested_capital
+    return operating_income / invested_capital
 
 
 def calculate_gross_margin(inputs: MetricInputs) -> Decimal | None:
@@ -371,6 +393,7 @@ DERIVED_METRICS: dict[str, Callable[[MetricInputs], Decimal | None]] = {
     "roe": calculate_roe,
     "roa": calculate_roa,
     "roic": calculate_roic,
+    "roic_pretax": calculate_roic_pretax,
     "gross_margin": calculate_gross_margin,
     "operating_margin": calculate_operating_margin,
     "net_margin": calculate_net_margin,

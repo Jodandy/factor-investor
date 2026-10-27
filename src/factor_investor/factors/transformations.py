@@ -21,6 +21,23 @@ from scipy import stats
 logger = logging.getLogger(__name__)
 
 
+# Base metrics are sampled monthly, so the first point in a window can be up to
+# about a month after the window start.
+WINDOW_START_TOLERANCE_DAYS = 45
+
+
+def _covers_window(window_data: pl.DataFrame, window_start: date) -> bool:
+    """True if the data reaches back to (about) the start of the window.
+
+    Counting data points is not enough: with monthly samples, a 5-year window
+    would otherwise accept 5 months of history.
+    """
+    if len(window_data) == 0:
+        return False
+    earliest = window_data["date"].min()
+    return earliest <= window_start + timedelta(days=WINDOW_START_TOLERANCE_DAYS)
+
+
 def transform_level(base_df: pl.DataFrame) -> pl.DataFrame:
     """No-op: return latest value as-is.
 
@@ -88,7 +105,7 @@ def transform_mean(base_df: pl.DataFrame, window_years: int) -> pl.DataFrame:
             )
 
             # Require at least N years of data (at least N data points)
-            if len(window_data) >= window_years:
+            if _covers_window(window_data, window_start):
                 mean_value = window_data["value"].mean()
                 result.append(
                     {"instrument_id": ins_id, "date": curr_date, "value": mean_value}
@@ -146,7 +163,7 @@ def transform_min(base_df: pl.DataFrame, window_years: int) -> pl.DataFrame:
                 (pl.col("date") >= window_start) & (pl.col("date") <= curr_date)
             )
 
-            if len(window_data) >= window_years:
+            if _covers_window(window_data, window_start):
                 min_value = window_data["value"].min()
                 result.append(
                     {"instrument_id": ins_id, "date": curr_date, "value": min_value}
@@ -198,7 +215,7 @@ def transform_max(base_df: pl.DataFrame, window_years: int) -> pl.DataFrame:
                 (pl.col("date") >= window_start) & (pl.col("date") <= curr_date)
             )
 
-            if len(window_data) >= window_years:
+            if _covers_window(window_data, window_start):
                 max_value = window_data["value"].max()
                 result.append(
                     {"instrument_id": ins_id, "date": curr_date, "value": max_value}
@@ -250,7 +267,7 @@ def transform_median(base_df: pl.DataFrame, window_years: int) -> pl.DataFrame:
                 (pl.col("date") >= window_start) & (pl.col("date") <= curr_date)
             )
 
-            if len(window_data) >= window_years:
+            if _covers_window(window_data, window_start):
                 median_value = window_data["value"].median()
                 result.append(
                     {"instrument_id": ins_id, "date": curr_date, "value": median_value}
@@ -371,7 +388,7 @@ def transform_trend(base_df: pl.DataFrame, window_years: int) -> pl.DataFrame:
             )
 
             # Need at least 3 points for trend
-            if len(window_data) >= 3:
+            if len(window_data) >= 3 and _covers_window(window_data, window_start):
                 # Convert dates to years since start for regression
                 dates_np = np.array(
                     [(d - window_start).days / 365.25 for d in window_data["date"]]
@@ -444,7 +461,7 @@ def transform_stability_cv(base_df: pl.DataFrame, window_years: int) -> pl.DataF
                 (pl.col("date") >= window_start) & (pl.col("date") <= curr_date)
             )
 
-            if len(window_data) >= window_years:
+            if _covers_window(window_data, window_start):
                 mean_val = window_data["value"].mean()
                 std_val = window_data["value"].std()
 
@@ -512,7 +529,7 @@ def transform_percentile_history(
                 (pl.col("date") >= window_start) & (pl.col("date") <= curr_date)
             )
 
-            if len(window_data) >= window_years and curr_value is not None:
+            if _covers_window(window_data, window_start) and curr_value is not None:
                 # Calculate percentile rank
                 values_np = window_data["value"].to_numpy()
                 percentile = (
