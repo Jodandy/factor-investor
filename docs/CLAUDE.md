@@ -15,7 +15,7 @@ Dessa regler gäller all kod i projektet. Bryt aldrig mot dem, inte ens tillfäl
 1. **Point-in-time.** All fundamental data slås upp via sitt `known_from`-datum, aldrig via periodslut. En rapport får inte användas före den dag den publicerades. Saknas publiceringsdatum används en konservativ fördröjning (se WORK_ORDER fas 2).
 2. **Exekveringsfördröjning.** En signal beräknad med data per dag T får tidigast exekveras på dag T+1. Ingen handel på samma kurs som signalen beräknades från.
 3. **Inga överlevare-filter.** Avnoterade bolag (uppköp, konkurs, avnotering) ingår i universumet för de datum de var noterade. Ingen kod får filtrera på "finns idag".
-4. **Holdout är låst.** Perioden från `HOLDOUT_START` (i `config/settings.toml`) och framåt får endast läsas av `factor_investor.validation.final_holdout`, som kräver en explicit flagga och loggar varje körning permanent. All övrig kod ska klippa data vid `HOLDOUT_START` och ett test ska verifiera det.
+4. **Ingen fast holdout; alla perioder väger lika.** Hela historiken används för forskning. Skydd mot överanpassning sker via walk-forward och CPCV över hela perioden (varje delperiod får vara osedd i tur och ordning), deflated Sharpe och PBO baserat på antal försök, samt framåtriktad pappershandel av slutkandidater. Ingen enskild period, särskilt inte de senaste åren, får fungera som ensam grind för att välja eller förkasta en strategi. (Beslut 2026-10-27, se `DECISIONS.md`.)
 5. **Varje körning registreras.** Varje backtest som körs inom en sökning eller ett experiment loggas i trial-registret (konfiguration, config-hash, hypotes-id, nyckeltal). Ingen körning får göras "vid sidan av" registret i forskningssyfte. Antalet försök används i deflated Sharpe och PBO.
 6. **Kostnader är alltid på.** Transaktionskostnader och likviditetsbegränsningar är påslagna som default. Att stänga av dem kräver en explicit flagga och resultatet märks som "gross".
 7. **Determinism.** Samma konfiguration och samma data ger exakt samma resultat. Alla slumpkällor har seed.
@@ -51,7 +51,7 @@ factor-investor/
     benchmarks/
     metrics/
     research/      talangstudier, IC, kvantilanalys
-    validation/    walk-forward, CPCV, deflated Sharpe, PBO, robusthet, final_holdout
+    validation/    walk-forward, CPCV, deflated Sharpe, PBO, robusthet, pappershandel
     search/        körning av hypoteser, Optuna, trial-register
     reporting/
     cli.py

@@ -7,9 +7,6 @@ cache_dir = "data/cache"
 parquet_dir = "data/parquet"
 raw_json_dir = "data/raw"
 
-[holdout]
-start = 2022-07-01
-
 [defaults]
 base_currency = "SEK"
 

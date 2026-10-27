@@ -12,6 +12,7 @@ that returns TargetPortfolio from generate_signals().
 """
 
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date
 
@@ -156,6 +157,24 @@ class Portfolio:
 
         return daily_return
 
+    @staticmethod
+    def normalize_weights(
+        target_weights: pl.DataFrame, max_position_weight: float
+    ) -> pl.DataFrame:
+        """Cap each weight at max_position_weight, then renormalize to sum 1.0."""
+        target_weights = target_weights.with_columns(
+            pl.when(pl.col("weight") > max_position_weight)
+            .then(pl.lit(max_position_weight))
+            .otherwise(pl.col("weight"))
+            .alias("weight")
+        )
+        total_weight = target_weights["weight"].sum()
+        if total_weight > 0:
+            target_weights = target_weights.with_columns(
+                (pl.col("weight") / total_weight).alias("weight")
+            )
+        return target_weights
+
     def rebalance(
         self,
         target_weights: pl.DataFrame,
@@ -163,6 +182,8 @@ class Portfolio:
         rebal_date: date,
         transaction_cost_bps: int = 10,
         max_position_weight: float = 0.10,
+        partial: bool = False,
+        sell_at_last_price: Collection[int] = (),
     ) -> list[Trade]:
         """Rebalance portfolio to target weights.
 
@@ -173,79 +194,67 @@ class Portfolio:
         4. Apply transaction costs
         5. Update holdings and cash
 
+        Instruments without a price in `prices` are not traded (neither bought
+        nor sold), except holdings listed in `sell_at_last_price`, which are
+        sold at their last known price. Buys never spend more than available
+        cash.
+
         Args:
             target_weights: DataFrame with [instrument_id, weight]
             prices: DataFrame with [instrument_id, price]
             rebal_date: Rebalancing date
             transaction_cost_bps: Transaction cost in basis points
             max_position_weight: Maximum weight per position
+            partial: If False, target_weights is the full portfolio: weights are
+                capped and renormalized, and holdings not in it are sold. If
+                True, only the listed instruments are traded, weights as given.
+            sell_at_last_price: Held instruments that stopped trading
 
         Returns:
             List of Trade objects executed
         """
         total_value = self.total_value
+        if not partial:
+            target_weights = self.normalize_weights(target_weights, max_position_weight)
 
-        # Enforce max position weight
-        target_weights = target_weights.with_columns(
-            pl.when(pl.col("weight") > max_position_weight)
-            .then(pl.lit(max_position_weight))
-            .otherwise(pl.col("weight"))
-            .alias("weight")
-        )
-
-        # Renormalize weights to sum to 1.0
-        total_weight = target_weights["weight"].sum()
-        if total_weight > 0:
-            target_weights = target_weights.with_columns(
-                (pl.col("weight") / total_weight).alias("weight")
-            )
-
-        # Calculate target positions (only includes instruments with prices)
-        target_positions = target_weights.join(
-            prices,
-            on="instrument_id",
-            how="inner",
-        )
-
-        target_positions = target_positions.with_columns(
-            ((pl.col("weight") * total_value) / pl.col("price")).alias("target_shares")
-        )
-
-        # Get current positions and join with prices
-        # (need prices for both buying and selling)
         current_positions = self.holdings.select([
             "instrument_id",
             pl.col("shares").alias("current_shares"),
-        ]).join(
-            prices.select(["instrument_id", pl.col("price").alias("current_price")]),
-            on="instrument_id",
-            how="left",  # Keep all current positions, even without prices
-        )
+            "last_price",
+        ])
 
-        # Join target with current (outer join to catch sells and buys)
-        positions = target_positions.join(
+        # Full join (not partial) also catches holdings to sell. coalesce=True is
+        # required: without it, sell-only rows get a null instrument_id and the
+        # sold position is never removed from holdings.
+        positions = target_weights.select(["instrument_id", "weight"]).join(
             current_positions,
             on="instrument_id",
-            how="outer",
+            how="left" if partial else "full",
+            coalesce=True,
+        ).join(
+            prices.select(["instrument_id", "price"]),
+            on="instrument_id",
+            how="left",
         ).with_columns([
-            pl.col("target_shares").fill_null(0),
+            pl.col("weight").fill_null(0),
             pl.col("current_shares").fill_null(0),
         ])
 
-        # Use target price for buys, current_price for sells
-        # If neither available, skip the trade (can't trade without price)
+        stale_ids = list(sell_at_last_price)
         positions = positions.with_columns(
-            pl.when(pl.col("target_shares") > pl.col("current_shares"))
-            .then(pl.col("price"))  # Buy: use target price
-            .otherwise(pl.col("current_price"))  # Sell: use current price
+            pl.when(pl.col("instrument_id").is_in(stale_ids) & pl.col("price").is_null())
+            .then(pl.col("last_price"))
+            .otherwise(pl.col("price"))
             .alias("trade_price")
         )
 
-        # Filter out trades without valid prices
+        # Can't trade without a price
         positions = positions.filter(pl.col("trade_price").is_not_null())
 
         # Calculate trades needed
         positions = positions.with_columns(
+            ((pl.col("weight") * total_value) / pl.col("trade_price")).alias("target_shares")
+        ).with_columns(
             (pl.col("target_shares") - pl.col("current_shares")).alias("shares_delta")
         )
 
@@ -269,26 +278,24 @@ class Portfolio:
             )
             executed_trades.append(trade)
 
-        # Execute buys (with available cash)
+        # Execute buys, limited to available cash (no leverage)
         buys = trades_needed.filter(pl.col("shares_delta") > 0).sort("shares_delta", descending=True)
         for row in buys.iter_rows(named=True):
+            price = row["trade_price"]
+            affordable = max(self.cash, 0.0) / (price * (1 + transaction_cost_bps / 10000))
+            shares = min(row["shares_delta"], affordable)
+            if shares <= 0.01:
+                logger.debug(f"Insufficient cash to buy {row['instrument_id']} on {rebal_date}")
+                continue
             trade = self._execute_trade(
                 instrument_id=row["instrument_id"],
-                shares=row["shares_delta"],
-                price=row["trade_price"],
+                shares=shares,
+                price=price,
                 action="buy",
                 date=rebal_date,
                 cost_bps=transaction_cost_bps,
             )
             executed_trades.append(trade)
-
-            # Check if we're out of cash
-            if self.cash < 0:
-                logger.warning(
-                    f"Insufficient cash after rebalancing on {rebal_date}. "
-                    f"Cash: {self.cash:,.0f} (negative)"
-                )
-                break
 
         return executed_trades
 

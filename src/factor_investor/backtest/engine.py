@@ -15,13 +15,18 @@ from datetime import date, timedelta
 
 import polars as pl
 
+from factor_investor import settings
 from factor_investor.analytics.metrics import PerformanceMetrics, calculate_performance_metrics
 from factor_investor.backtest.portfolio import Portfolio
-from factor_investor.backtest.strategy import Strategy
+from factor_investor.backtest.strategy import Strategy, TargetPortfolio
 from factor_investor.db import get_session
 from factor_investor.universe.models import TotalReturn
 
 logger = logging.getLogger(__name__)
+
+# A held instrument without a price for this many calendar days is treated as
+# no longer trading and is sold at its last known price.
+STALE_PRICE_DAYS = 30
 
 
 @dataclass
@@ -131,6 +136,18 @@ class BacktestEngine:
         >>> print(f"Trades: {len(result.trades)}")
     """
 
+    def __init__(self, execution_delay_days: int | None = None) -> None:
+        """Initialize engine.
+
+        Args:
+            execution_delay_days: Trading days between signal and execution.
+                Defaults to settings.toml (>= 1). 0 is only for tests that
+                verify the delay is applied.
+        """
+        if execution_delay_days is None:
+            execution_delay_days = settings.execution_delay_days()
+        self.execution_delay_days = execution_delay_days
+
     def run(
         self,
         strategy: Strategy,
@@ -139,6 +156,9 @@ class BacktestEngine:
         initial_capital: float = 1_000_000,
     ) -> BacktestResult:
         """Run backtest for a strategy.
+
+        Signals are generated on each rebalancing date and executed
+        `execution_delay_days` trading days later, at that day's price.
 
         Args:
             strategy: Strategy to test
@@ -174,6 +194,14 @@ class BacktestEngine:
 
         # Simulation loop
         next_rebal_idx = 0
+        # Signals waiting for their delay: (due_day_idx, signal_date, target)
+        pending: list[tuple[int, date, TargetPortfolio]] = []
+        # Per-instrument orders from the latest due signal: id -> (weight, signal_date).
+        # The trading calendar is the union of all markets, so a given stock may
+        # not trade on the due day; its order waits for the stock's own next price.
+        open_orders: dict[int, tuple[float, date]] = {}
+        last_price_date: dict[int, date] = {}
+        previous_value = portfolio.total_value
 
         for day_idx, current_date in enumerate(trading_days):
             if (day_idx + 1) % 100 == 0:
@@ -186,45 +214,89 @@ class BacktestEngine:
                 logger.warning(f"No prices for {current_date}, skipping")
                 continue
 
-            # Update portfolio prices and calculate daily return
-            daily_return = portfolio.update_prices(prices_today, current_date)
-            daily_returns.append({
-                "date": current_date,
-                "portfolio_return": daily_return,
-            })
+            portfolio.update_prices(prices_today, current_date)
 
-            # Check if we should rebalance
+            # Generate signal on rebalancing date; execution is delayed
             if next_rebal_idx < len(rebal_dates) and current_date >= rebal_dates[next_rebal_idx]:
                 rebal_date = rebal_dates[next_rebal_idx]
-                logger.debug(f"  Rebalancing on {rebal_date}")
+                next_rebal_idx += 1
+                logger.debug(f"  Signal on {rebal_date}")
 
-                # Get target portfolio from strategy
-                current_holdings_df = portfolio.get_holdings_df()
-                target = strategy.generate_signals(rebal_date, current_holdings_df)
-
+                target = strategy.generate_signals(rebal_date, portfolio.get_holdings_df())
                 logger.debug(f"    Target: {len(target.holdings)} positions")
 
                 # Skip rebalancing if no target holdings (e.g., no factor data)
                 if len(target.holdings) == 0:
-                    logger.warning(f"    Skipping rebalance - no target holdings")
-                    next_rebal_idx += 1
-                    continue
+                    logger.warning("    Skipping rebalance - no target holdings")
+                else:
+                    pending.append((day_idx + self.execution_delay_days, rebal_date, target))
 
-                # Rebalance portfolio
+            # A due signal replaces any unfilled orders from the previous one
+            while pending and pending[0][0] <= day_idx:
+                _, signal_date, target = pending.pop(0)
+                weights = Portfolio.normalize_weights(
+                    target.holdings, strategy.max_position_weight
+                )
+                open_orders = {
+                    row["instrument_id"]: (row["weight"], signal_date)
+                    for row in weights.iter_rows(named=True)
+                }
+                for ins_id in portfolio.holdings["instrument_id"].to_list():
+                    open_orders.setdefault(ins_id, (0.0, signal_date))
+
+            priced_today = set(prices_today["instrument_id"].to_list())
+            for ins_id in portfolio.holdings["instrument_id"].to_list():
+                if ins_id in priced_today:
+                    last_price_date[ins_id] = current_date
+
+            # Holdings without a price for STALE_PRICE_DAYS have stopped trading
+            stale = {
+                ins_id
+                for ins_id in portfolio.holdings["instrument_id"].to_list()
+                if ins_id not in priced_today
+                and (current_date - last_price_date.get(ins_id, current_date)).days
+                >= STALE_PRICE_DAYS
+            }
+
+            # Buy orders that never got a price are dropped
+            open_orders = {
+                ins_id: order
+                for ins_id, order in open_orders.items()
+                if ins_id in priced_today
+                or ins_id in stale
+                or (current_date - order[1]).days < STALE_PRICE_DAYS
+            }
+
+            executable = {i: o for i, o in open_orders.items() if i in priced_today}
+            for ins_id in stale:
+                executable[ins_id] = (0.0, open_orders.get(ins_id, (0.0, None))[1])
+
+            if executable:
+                current_holdings_df = portfolio.get_holdings_df()
                 trades = portfolio.rebalance(
-                    target_weights=target.holdings,
+                    target_weights=pl.DataFrame(
+                        {
+                            "instrument_id": list(executable.keys()),
+                            "weight": [w for w, _ in executable.values()],
+                        },
+                        schema={"instrument_id": pl.Int32, "weight": pl.Float64},
+                    ),
                     prices=prices_today,
-                    rebal_date=rebal_date,
+                    rebal_date=current_date,
                     transaction_cost_bps=strategy.transaction_cost_bps,
                     max_position_weight=strategy.max_position_weight,
+                    partial=True,
+                    sell_at_last_price=stale,
                 )
+                for ins_id in executable:
+                    open_orders.pop(ins_id, None)
 
-                logger.debug(f"    Executed: {len(trades)} trades")
-
-                # Record trades
                 for trade in trades:
+                    if trade.action == "buy":
+                        last_price_date[trade.instrument_id] = current_date
                     all_trades.append({
                         "date": trade.date,
+                        "signal_date": executable[trade.instrument_id][1],
                         "instrument_id": trade.instrument_id,
                         "action": trade.action,
                         "shares": trade.shares,
@@ -232,12 +304,23 @@ class BacktestEngine:
                         "cost": trade.cost,
                     })
 
-                # Callback to strategy (optional)
-                new_holdings_df = portfolio.get_holdings_df()
-                trades_df = pl.DataFrame(all_trades[-len(trades):]) if trades else pl.DataFrame()
-                strategy.on_rebalance(rebal_date, current_holdings_df, new_holdings_df, trades_df)
+                if trades:
+                    logger.debug(f"    Executed {len(trades)} trades on {current_date}")
+                    new_holdings_df = portfolio.get_holdings_df()
+                    trades_df = pl.DataFrame(all_trades[-len(trades):])
+                    signal_date = executable[trades[0].instrument_id][1] or current_date
+                    strategy.on_rebalance(
+                        signal_date, current_holdings_df, new_holdings_df, trades_df
+                    )
 
-                next_rebal_idx += 1
+            # Daily return from end-of-day value, so trading costs are included
+            current_value = portfolio.total_value
+            daily_return = current_value / previous_value - 1 if previous_value > 0 else 0.0
+            previous_value = current_value
+            daily_returns.append({
+                "date": current_date,
+                "portfolio_return": daily_return,
+            })
 
             # Record holdings (daily snapshot)
             holdings_df = portfolio.get_holdings_df()
@@ -267,6 +350,7 @@ class BacktestEngine:
         trades_df = pl.DataFrame(all_trades) if all_trades else pl.DataFrame(
             schema={
                 "date": pl.Date,
+                "signal_date": pl.Date,
                 "instrument_id": pl.Int32,
                 "action": pl.Utf8,
                 "shares": pl.Float64,

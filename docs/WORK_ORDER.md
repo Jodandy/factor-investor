@@ -12,7 +12,7 @@ Arbetet är uppdelat i faser. Varje fas avslutas med acceptanskriterier som ska 
 
 - Skapa repostrukturen enligt `CLAUDE.md`, `pyproject.toml` med `uv`, ruff, mypy och pytest konfigurerade.
 - Docker Compose med PostgreSQL. Migreringar med Alembic.
-- `config/settings.toml` med bland annat: databas-URL, sökväg till datakatalog, `HOLDOUT_START` (default `2022-07-01`), basvaluta `SEK`, default-fördröjningar för rapportpublicering.
+- `config/settings.toml` med bland annat: databas-URL, sökväg till datakatalog, basvaluta `SEK`, default-fördröjningar för rapportpublicering.
 - `.env` för `BORSDATA_API_KEY` (gitignored), `.env.example` incheckad.
 - CLI-skelett med typer: `factor-lab ingest`, `build-pit`, `build-universe`, `build-panel`, `backtest`, `research`, `search`, `validate`, `report`.
 - CI-liknande `make check` som kör ruff, mypy och pytest.
@@ -212,7 +212,7 @@ Alla numeriska fält ska kunna ersättas med en sökparameter (`{search: [a, b, 
 - **Talangstudie / eventstudie**: givet ett urvalsvillkor, ta alla bolag som uppfyller det på varje rebalanseringsdatum och mät avkastning framåt (3, 6, 12, 24, 36, 60 månader) relativt universum. Redovisa fördelningen (percentiler, skevhet, andel som når 2x/5x/10x, andel som tappar >50 % eller avnoteras med förlust). Möjlighet att dela upp på egenskaper vid urvalstillfället för att hitta tidiga tecken som skiljer vinnare från förlorare.
 - **Faktoranalys**: information coefficient (Spearman) per datum och över tid, kvintil-/decilportföljer och spread, avtagande signal (IC vid olika horisonter), omsättning per kvintil.
 - **Korrelation mellan faktorer** och klustring per familj.
-- Allt detta respekterar holdout-gränsen och loggas i trial-registret.
+- Allt detta loggas i trial-registret.
 
 **Acceptans**
 
@@ -238,7 +238,7 @@ Alla numeriska fält ska kunna ersättas med en sökparameter (`{search: [a, b, 
   - utan de 5 bästa bolagen
   - längre fallback-fördröjning för rapporter
   - för djupvärde: konkursåtervinning 0 % och strängare konkursklassning
-- **Final holdout** (`validation.final_holdout`): kör en eller ett fåtal förvalda kandidater på holdout-perioden. Kräver flagga, skriver permanent post i registret, och varnar om holdout redan har körts tidigare.
+- **Pappershandel** (`validation.paper_trading`): slutkandidater körs framåt från ett fastställt startdatum på data som inte fanns när strategin byggdes. Startdatum och konfiguration registreras permanent i registret och får inte ändras i efterhand. (Ersätter fast holdout, beslut 2026-10-27.)
 
 **Acceptans**
 
@@ -273,7 +273,7 @@ Alla numeriska fält ska kunna ersättas med en sökparameter (`{search: [a, b, 
 
 - HTML-rapport per strategi: equity-kurva mot benchmarks (log-skala), drawdown, årlig överavkastning, rullande 3-års överavkastning, innehav över tid, affärsfördelning, koncentration av avkastning, robusthetsresultat, DSR och PBO, antal försök bakom resultatet.
 - Jämförelserapport mellan hypoteser.
-- Varje rapport visar tydligt vilken dataperiod som använts och om holdout ingår.
+- Varje rapport visar tydligt vilken dataperiod som använts.
 
 **Acceptans**
 

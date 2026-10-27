@@ -190,15 +190,3 @@ class TestPITTemporal:
         # Should treat as missing and use fallback
         assert known == expected, "Should use fallback for 1899 dates"
         assert is_fallback, "Should use fallback for 1899-12-30 date"
-
-    def test_data_truncation_at_holdout(self) -> None:
-        """Verify that PIT data respects holdout boundary (if implemented).
-
-        Note: This test will be skipped until holdout enforcement is implemented.
-
-        Future implementation should:
-        1. Get holdout_start date from config
-        2. Query as_of() with far-future date
-        3. Verify max(period_end) < holdout_start
-        """
-        pytest.skip("Holdout enforcement not yet implemented in PIT layer")

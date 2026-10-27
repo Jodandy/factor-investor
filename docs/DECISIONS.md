@@ -526,3 +526,50 @@ selection_criteria:
 - Default "investable universe" with soft filters (rejected: still imposes arbitrary choices)
 
 ---
+
+---
+
+## 2026-10-27 | Backtest engine: T+1 execution and accounting fixes
+
+**Decisions:**
+- **Execution delay:** signals are generated on the rebalancing date and executed `execution_delay_days` trading days later (settings.toml, must be >= 1) at that day's price. Trades record both `date` (execution) and `signal_date`. `BacktestEngine(execution_delay_days=0)` exists only for the integrity test that proves the delay changes results.
+- **Per-instrument execution:** the engine's calendar is the union of all markets (some trade on weekends), so a stock may not trade on the due day. Each instrument's order waits for that stock's own next price; it never executes at a stale (signal-day) price. A new signal cancels unfilled orders from the previous one. Buy orders that get no price within 30 days are dropped.
+- **Positions that stop trading:** a holding with no price for `STALE_PRICE_DAYS` (30 calendar days) is sold at its last known price. Rationale (user): in acquisitions the buyer pays roughly the last price. Börsdata contains no delisted companies (see DATA_AUDIT), so this mostly covers trading halts; bankruptcy recovery cannot be modelled from this data.
+- **No leverage:** buys are capped at available cash. If a sell is waiting for a price, buys funded by it are partially filled and the cash stays uninvested until the next signal.
+- **Daily returns** are computed from end-of-day portfolio value, so transaction costs now show up in the returns series.
+
+**Bug fixed:** `Portfolio.rebalance` used a polars outer join without `coalesce=True`. Fully exited positions got a null `instrument_id`, so the sale credited cash but the position stayed in holdings — every rebalance created money. All backtest results before this date are invalid and were deleted.
+
+**Not filtered in the engine (user decision):** liquidity and universe membership. Both must be available as strategy-level filters instead. Flat-bps costs remain on by default; `costs.yaml`-based costs are still TODO.
+
+**Corrupted-instrument list:** kept as a manual list despite being identified partly from backtest outcomes (mild hindsight). Accepted because the list is short relative to the universe.
+
+---
+
+## 2026-10-27 | Drop the fixed holdout period
+
+**Decision:** Remove `HOLDOUT_START` and the locked holdout (old CLAUDE.md invariant 4). All ~20 years of data (2006–today) are used for research.
+
+**Rationale (user):** A fixed holdout at the end of the data is a single, short (2–3 year), regime-specific window. Using it as a pass/fail gate puts a premium on what happened to work in the last few years, which may not reflect long-run behaviour. Strategies should be judged across all periods equally.
+
+**Overfitting is handled instead by:**
+- Walk-forward and CPCV over the full history, so every sub-period takes a turn as out-of-sample
+- Deflated Sharpe and PBO using the trial count from the trial registry (invariant 5 still applies)
+- Forward paper trading of final candidates — data that did not exist when the strategy was built
+
+**Unchanged:** lookahead protection (PIT `known_from` for fundamentals, T+1 execution for prices) is the top priority and is independent of this decision.
+
+**Alternatives considered:**
+- Keep holdout at 2022-07-01 (rejected: already viewed, and recent-regime bias)
+- Move holdout to 2024-01-01 (rejected: same recent-regime bias, just shorter)
+
+---
+
+## 2026-10-27 | Accepted residual lookahead risks
+
+The user accepted these known, minor risks rather than mitigating them now:
+
+1. **Restated reports:** if Börsdata overwrites historical reports with restated figures, we only see the final version, not what was originally published. Unverified.
+2. **Split-adjusted price levels:** historical prices are back-adjusted for splits, so filters on absolute price level (e.g. `min_price = 5`) or turnover in currency use levels not seen at the time. Returns are unaffected.
+3. **Corrupted-instrument list:** partly identified from backtest outcomes (see entry above).
+

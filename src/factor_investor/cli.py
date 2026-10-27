@@ -576,20 +576,6 @@ def validate_robustness(
     typer.echo(f"Robustness tests for {strategy}... [not implemented]")
 
 
-@validate_app.command("holdout")
-def validate_holdout(
-    strategy: str = typer.Argument(..., help="Path to strategy YAML"),
-    confirm: bool = typer.Option(
-        False, "--confirm", help="Confirm holdout run (logged permanently)"
-    ),
-) -> None:
-    """Run final holdout validation (requires --confirm, logged permanently)."""
-    if not confirm:
-        typer.echo("Holdout validation requires --confirm flag. This will be logged permanently.")
-        raise typer.Exit(1)
-    typer.echo(f"Running HOLDOUT for {strategy}... [not implemented]")
-
-
 # --- Report commands ---
 @app.command("report")
 def report(
