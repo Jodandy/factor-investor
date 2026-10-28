@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run_fast_tests.sh",
+            "timeout": 180,
+            "statusMessage": "Running fast test suite..."
+          }
+        ]
+      }
+    ]
+  }
+}

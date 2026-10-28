@@ -19,7 +19,7 @@ make check
 
 - **[SYNC_GUIDE.md](docs/SYNC_GUIDE.md)** - **Data sync commands (START HERE!)** ⭐
 - **[Incremental Factor Sync](docs/incremental-factor-sync.md)** - Add individual factors without full rebuild ⚡
-- [CLAUDE.md](docs/CLAUDE.md) - Project instructions
+- [CLAUDE.md](CLAUDE.md) - Project instructions
 - [WORK_ORDER.md](docs/WORK_ORDER.md) - Implementation phases
 - [HYPOTHESES.md](docs/HYPOTHESES.md) - Strategy hypotheses
 - [DECISIONS.md](docs/DECISIONS.md) - Design decisions log
