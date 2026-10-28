@@ -745,3 +745,18 @@ Factor cache version bumped to 5.
 **Finding:** placeholder prices such as 0.0002 followed by a jump back (Investar Holding 2014-07-01: 0.0002 → 14.20) create fake returns; total-return indices up to 1.8 × 10^7. 2,276 one-day rises above 3× and 2,076 falls below 1/3 in 1,594 stocks (mix of real penny-stock moves and errors).
 
 **Decision (user):** keep the raw data; handle glitches later in a dedicated exclusion/cleaning step. Until then, price metrics and backtests can be distorted for the affected stocks.
+
+---
+
+## 2026-10-28 | One listing per company (`dedupe_listings_v1`)
+
+**Finding:** after excluding Germany, 248 company names still had more than one eligible listing on 2026-09-30 (Apple in the US, Warsaw and Milan; Canadian companies also listed in the US; ADRs next to home listings; share classes). Holding several of them doubles the position in one company.
+
+**Decision (user):** a universe filter applied at read time, no rebuild (`universe/listings.py`):
+- **Grouping** from instrument metadata only: same ISIN, same name, or same name apart from a share class suffix (A, B, C, D, R, K, SDR, SDB) in the same country; groups chain. ISINs alone are not enough (missing for most secondary listings and ADRs, and exchange-specific for some, e.g. Stora Enso). Name matching was checked against reports: 56 of 57 share class pairs have identical annual reports; most same-name pairs have matching net margins. Truncated names shared by different companies are kept apart by an exception list (`NOT_SAME_COMPANY_V1`: Caisse Regionale de Credit).
+- **Selection** per snapshot date: the listing with the highest 60-day median turnover in USD (USD/XXX pairs from Börsdata, last quote on or before the date), then the listing trading in the reporting currency, then the lowest instrument id.
+- Removes 49–349 listings per snapshot (330 on 2026-09-30).
+
+**Known cost:** the chosen listing switches in 2.1% of company-months (738 times over 2007–2026), mostly companies with home and US listings of similar liquidity (AB InBev, Logitech, BP, Aegon, Santander) and Lindt's two share classes. A strategy holding such a company would sell one listing and buy the other. Accepted for v1; if backtests show it matters, v2 keeps the current listing unless another is clearly more liquid.
+
+**Alternatives considered:** home listing by ISIN country (stable, but ISINs are missing for many listings); keep the type-0 listing (arbitrary for share classes); a deduplicated universe table (needs a rebuild whenever the rule changes).
