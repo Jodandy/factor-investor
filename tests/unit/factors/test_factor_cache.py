@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from factor_investor.factors import queries
+from factor_investor.factors.normalizations import normalize_percentile
 
 AS_OF = date(2024, 1, 31)
 BASE = pl.DataFrame(
@@ -28,6 +29,19 @@ def fake_base_metric(monkeypatch, tmp_path):
 
     monkeypatch.setattr(queries, "_get_base_metric", fake)
     monkeypatch.setattr(queries, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(queries, "_eligible_instruments", lambda as_of_date: None)
+
+
+def test_normalization_only_over_eligible_universe(monkeypatch) -> None:
+    """Excluded listings (e.g. German secondary listings) must not affect the
+    percentiles of eligible companies."""
+    monkeypatch.setattr(queries, "_eligible_instruments", lambda as_of_date: {1, 2})
+
+    result = queries.get_factor("roe_level_pct", AS_OF, use_cache=False).sort("instrument_id")
+
+    expected = normalize_percentile(BASE.filter(pl.col("instrument_id").is_in([1, 2])))
+    assert result["instrument_id"].to_list() == [1, 2]
+    assert result["value"].to_list() == expected.sort("instrument_id")["value"].to_list()
 
 
 def test_subset_request_uses_full_cross_section_percentiles() -> None:

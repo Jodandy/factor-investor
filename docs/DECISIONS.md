@@ -669,3 +669,26 @@ The user accepted these known, minor risks rather than mitigating them now:
 - Both None only when operating income or invested capital is missing, or invested capital ≤ 0 (undefined).
 
 **Alternatives considered:** pre-tax only; after-tax only with default rate; keep None (rejected: survivorship-like bias within the factor).
+
+---
+
+## 2026-10-28 | Survivorship bias: scope research realistically
+
+**Context:** Börsdata has no delisted companies (DATA_AUDIT). Extending prices to 2006 makes the bias larger in early years: the further back, the more failed companies are missing. The bias is uneven — strongest for cheap, small and distressed companies, weaker for quality.
+
+**Decision (user):** accept the data source, but be realistic in what conclusions are drawn:
+- Focus research on quality-oriented approaches, where the bias exists but is smaller.
+- Distressed/deep-value strategies (incl. net-nets) are flagged as high-bias; their results need extra skepticism and robustness checks.
+- Absolute returns from backtests are treated as upper bounds, never as expected returns.
+
+---
+
+## 2026-10-28 | Exclude German listings
+
+**Finding:** 6,094 of 17,894 instruments are listed in Germany; 4,326 of these report in non-EUR currencies, i.e. mostly secondary listings of US, Canadian and Chinese companies. 3,657 company names appear more than once overall. Duplicates distort cross-sectional rankings, allow holding the same company twice, and secondary quotes are often illiquid with stale prices.
+
+**Decision (user):** exclude all German listings (`[universe] exclude_country_ids = [8]`), since primary and secondary listings cannot be told apart reliably. Accepts losing genuine German primaries.
+
+**Also:** factor normalization (percentiles, z-scores, ranks) is computed only over instruments eligible in the universe on that date, so excluded listings cannot affect other companies' scores (`factors.queries._eligible_instruments`). Factor cache version bumped to 3.
+
+**Open:** remaining duplicates (share classes, other cross-listings) still to be handled.

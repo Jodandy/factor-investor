@@ -210,6 +210,19 @@ class UniverseService:
                 )
                 continue
 
+            # Excluded countries: skip the expensive calculations below
+            if ins.country_id in self.config.exclude_country_ids:
+                excluded_count += 1
+                exclusion_breakdown["excluded_country"] = (
+                    exclusion_breakdown.get("excluded_country", 0) + 1
+                )
+                universe_rows.append(
+                    self._create_universe_row(
+                        ins_id, as_of_date, price, False, "excluded_country", None, None, None, None
+                    )
+                )
+                continue
+
             # Calculate market cap
             market_cap = self._calculate_market_cap(session, ins_id, as_of_date, price)
 
@@ -225,9 +238,9 @@ class UniverseService:
             exclusion_reason = None
 
             # Only exclude extreme data quality issues
-            if price and price < Decimal(str(self.config.min_price)):
+            exclusion_reason = self._exclusion_reason(ins.country_id, price)
+            if exclusion_reason:
                 is_eligible = False
-                exclusion_reason = f"price_too_low_{price}"
 
             # Assign liquidity bucket (for cost modeling, not exclusion)
             liquidity_bucket = None
@@ -281,6 +294,14 @@ class UniverseService:
         )
 
         return (eligible_count, excluded_count, exclusion_breakdown)
+
+    def _exclusion_reason(self, country_id: int, price: Decimal | None) -> str | None:
+        """Reason an instrument is not eligible, or None if eligible."""
+        if country_id in self.config.exclude_country_ids:
+            return "excluded_country"
+        if price and price < Decimal(str(self.config.min_price)):
+            return f"price_too_low_{price}"
+        return None
 
     def _calculate_market_cap(
         self, _session: Session, ins_id: int, as_of_date: date, price: Decimal | None

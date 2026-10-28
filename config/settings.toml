@@ -26,6 +26,10 @@ trading_day_buffer = 1  # Additional buffer to prevent same-day trading
 # Data quality filters (minimal - exclude pennystocks and trash data)
 min_price = 5.0  # Filter out pennystocks (< 5 in local currency)
 
+# Excluded countries (country ids). 8 = Germany: mostly secondary listings of
+# foreign companies (4,326 of 6,094 report in non-EUR currencies)
+exclude_country_ids = [8]
+
 # Liquidity buckets (for transaction cost modeling - informational, not exclusionary)
 # These thresholds are used to classify instruments, not exclude them
 liquidity_bucket_thresholds = [

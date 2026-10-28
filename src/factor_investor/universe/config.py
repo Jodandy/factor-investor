@@ -17,6 +17,10 @@ class UniverseConfig(BaseModel):
     # Data quality filter (minimal)
     min_price: float = 5.0  # Filter out pennystocks (< 5 in local currency)
 
+    # Countries whose listings are excluded entirely (e.g. Germany: mostly
+    # secondary listings of foreign companies; see DECISIONS 2026-10-28)
+    exclude_country_ids: list[int] = Field(default_factory=list)
+
     # Liquidity bucket thresholds (for classification, not exclusion)
     liquidity_bucket_thresholds: list[float] = Field(
         default_factory=lambda: [10_000_000.0, 1_000_000.0, 100_000.0, 10_000.0]

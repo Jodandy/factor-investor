@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Cache directory for transformed/normalized factors. Bump the version when
 # factor logic changes so stale values are never read. The cache must also be
 # cleared after rebuilding base data (clear_cache()).
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 CACHE_DIR = Path(f"data/factors/cache/v{CACHE_VERSION}")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -150,6 +150,11 @@ def get_factor(
         )
 
     logger.debug(f"  After filtering to {as_of_date}: {len(transformed_df)} rows")
+
+    # Normalize only over the eligible universe (percentile "in the universe")
+    eligible = _eligible_instruments(as_of_date)
+    if eligible is not None:
+        transformed_df = transformed_df.filter(pl.col("instrument_id").is_in(list(eligible)))
 
     # Apply normalization
     result_df = _apply_normalization(transformed_df, normalization)
@@ -322,6 +327,21 @@ def _parse_factor_id(factor_id: str) -> dict:
         "window_years": window_years,
         "normalization": normalization,
     }
+
+
+def _eligible_instruments(as_of_date: date) -> set[int] | None:
+    """Instruments eligible in the universe on as_of_date.
+
+    Returns None (no restriction, with a warning) if the universe has not
+    been built for that date.
+    """
+    from factor_investor.universe.queries import get_universe
+
+    universe = get_universe(as_of_date, is_eligible=True)
+    if len(universe) == 0:
+        logger.warning(f"No universe for {as_of_date}; normalizing over all instruments")
+        return None
+    return set(universe["instrument_id"].to_list())
 
 
 def select_latest_ttm(pit_df: pl.DataFrame) -> pl.DataFrame:
