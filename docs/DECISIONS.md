@@ -692,3 +692,23 @@ The user accepted these known, minor risks rather than mitigating them now:
 **Also:** factor normalization (percentiles, z-scores, ranks) is computed only over instruments eligible in the universe on that date, so excluded listings cannot affect other companies' scores (`factors.queries._eligible_instruments`). Factor cache version bumped to 3.
 
 **Open:** remaining duplicates (share classes, other cross-listings) still to be handled.
+
+---
+
+## 2026-10-28 | Cap dividend yield at 15%
+
+**Finding:** report dividends and prices are scaled inconsistently for some instruments after restructurings (DATA_AUDIT "Report Dividends vs Prices"). 297 dividends exceed 100% of the share price; reinvesting them made total-return indices explode (Atos overflowed `Numeric(24, 6)`, i.e. > 10^18), and the same values would top the `dividend_yield` factor.
+
+**Decision (user):** treat any dividend above 15% of the price as a data error (`MAX_DIVIDEND_YIELD` in `universe/dividend_service.py`):
+- Total returns: a trading day's summed dividends above 15% of the previous close are not reinvested.
+- `dividend_yield` factor: omitted (None) when DPS / price > 15%.
+
+The previous close is known before the ex-date, so the check adds no lookahead.
+
+Every skipped dividend is logged per instrument (name, count, max yield) during `build-returns` and written to `data/logs/implausible_dividends.csv` for auditing. First run: 2,373 dividends in 1,387 instruments (468 of them German, already outside the universe).
+
+**Trade-off:** genuine special dividends above 15% are lost too, understating returns for those companies. Accepted: such dividends are rare and the bad data is common enough (2,419 dividends above 15%) that a looser cutoff lets milder scaling errors through.
+
+**Alternatives considered:** 50% cutoff (rejected by user as too loose); detecting the scaling mismatch per instrument (more complex, not needed yet); dropping affected instruments entirely (loses their valid price history).
+
+Total returns and base metrics rebuilt with `--force`; factor cache version bumped to 4.

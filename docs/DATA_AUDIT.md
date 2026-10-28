@@ -299,6 +299,24 @@ ins_id=491, 2024-01-19: open=0.40, high=0.34, low=0.31, close=0.34
 
 **Recommendation:** Filter out days with OHLC violations in universe builder.
 
+### Report Dividends vs Prices (checked 2026-10-28)
+
+Report dividends (DPS) and stock prices are not always scaled consistently. After large restructurings (rights issues, reverse splits, reverse mergers) the price history is adjusted but report per-share values are not, or are adjusted differently.
+
+- Atos (ins_id 18217): prices €0.0016–61 over 2006–2026, report dividends €30–126 per share (actual payouts were about €0.4–1.7).
+- Mechanics Bancorp (ins_id 72838): dividends $1,648–3,659 per share, price never above $17.
+
+Dividend / last close on or before the estimated ex-date, over all 79,662 report dividends:
+
+| Yield | Dividends | Instruments |
+|-------|-----------|-------------|
+| > 15% | 2,419 | |
+| > 50% | 527 | 369 |
+| > 100% | 297 | 203 |
+| max | 580,934× | |
+
+Before the fix, 78 instruments had a final total-return index above 10,000 (base 100), and two overflowed `Numeric(24, 6)`. Normal names (Ericsson, H&M) match. Handling: DECISIONS 2026-10-28 "Cap dividend yield at 15%". Earnings and book value per share may have the same scaling problem; not yet checked.
+
 ---
 
 ## Remaining Questions

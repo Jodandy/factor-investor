@@ -61,3 +61,12 @@ def test_missing_or_nonpositive_denominators_are_skipped() -> None:
 
 def test_zero_dividend_gives_zero_yield() -> None:
     assert valuation_ratios(PRICE, {**AAK, "dividend": 0.0})["dividend_yield"] == 0.0
+
+
+def test_dividend_yield_above_max_is_omitted() -> None:
+    """Implausible yields are data errors (inconsistent per-share scaling)."""
+    assert "dividend_yield" not in valuation_ratios(PRICE, {**AAK, "dividend": 46.0})
+
+
+def test_dividend_yield_at_max_is_kept() -> None:
+    assert valuation_ratios(PRICE, {**AAK, "dividend": 45.0})["dividend_yield"] == pytest.approx(0.15)

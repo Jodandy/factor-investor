@@ -8,6 +8,7 @@ import pytest
 from factor_investor.universe.dividend_service import (
     DividendService,
     compute_total_return_index,
+    implausible_dividends,
 )
 
 # Thu, Fri, Mon, Tue
@@ -44,6 +45,42 @@ def test_dividends_on_same_trading_day_are_summed() -> None:
     rows = by_date(compute_total_return_index(PRICES, divs))
 
     assert rows[date(2024, 3, 11)]["dividend_on_date"] == Decimal("5")
+
+
+def test_dividend_above_max_yield_is_skipped() -> None:
+    """Börsdata sometimes scales report dividends and prices differently after
+    restructurings (e.g. Atos: 'dividends' of 100x the price). Such dividends
+    must not be reinvested."""
+    rows = by_date(compute_total_return_index(PRICES, [(date(2024, 3, 11), Decimal("16"))]))
+
+    assert rows[date(2024, 3, 11)]["dividend_on_date"] is None
+    assert rows[date(2024, 3, 12)]["total_return_index"] == pytest.approx(Decimal("95"))
+
+
+def test_dividend_at_max_yield_is_kept() -> None:
+    rows = by_date(compute_total_return_index(PRICES, [(date(2024, 3, 11), Decimal("15"))]))
+
+    assert rows[date(2024, 3, 11)]["dividend_on_date"] == Decimal("15")
+    assert rows[date(2024, 3, 12)]["total_return_index"] == pytest.approx(Decimal("110"))
+
+
+def test_max_yield_applies_to_summed_dividends_on_a_day() -> None:
+    divs = [(date(2024, 3, 9), Decimal("10")), (date(2024, 3, 11), Decimal("10"))]
+    rows = by_date(compute_total_return_index(PRICES, divs))
+
+    assert rows[date(2024, 3, 11)]["dividend_on_date"] is None
+
+
+def test_implausible_dividends_are_reported_with_previous_close() -> None:
+    divs = [(date(2024, 3, 9), Decimal("16")), (date(2024, 3, 12), Decimal("1"))]
+
+    assert implausible_dividends(PRICES, divs) == [
+        (date(2024, 3, 11), Decimal("16"), Decimal("100"))
+    ]
+
+
+def test_no_implausible_dividends_for_normal_payouts() -> None:
+    assert implausible_dividends(PRICES, [(date(2024, 3, 11), Decimal("5"))]) == []
 
 
 def test_dividend_after_last_price_is_ignored() -> None:

@@ -308,6 +308,11 @@ def build_returns(
     result_table.add_row("TR Rows Calculated", f"{stats.total_returns_calculated:,}")
     result_table.add_row("With Dividends", f"{stats.instruments_with_dividends:,}")
     result_table.add_row("Skipped (errors)", f"{stats.instruments_skipped:,}")
+    result_table.add_row(
+        "Implausible Dividends Skipped",
+        f"{stats.implausible_dividends:,} in {stats.instruments_with_implausible_dividends:,} "
+        "instruments",
+    )
 
     console.print(result_table)
     console.print("[bold green]✓ Total returns build complete[/bold green]")

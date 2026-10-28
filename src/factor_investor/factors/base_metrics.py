@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from factor_investor.pit import as_of
+from factor_investor.universe.dividend_service import MAX_DIVIDEND_YIELD
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ def valuation_ratios(price: float, row: dict) -> dict[str, float]:
     already converted to the trading currency.
 
     Ratios with a zero, negative or missing denominator are omitted, except
-    yields, which are well-defined for negative or zero numerators.
+    yields, which are well-defined for negative or zero numerators. Dividend
+    yields above MAX_DIVIDEND_YIELD are omitted as data errors.
 
     Args:
         price: Share price
@@ -51,7 +53,7 @@ def valuation_ratios(price: float, row: dict) -> dict[str, float]:
         ratios["pb_ratio"] = price / book_value
 
     dividend = num("dividend")
-    if dividend is not None and dividend >= 0:
+    if dividend is not None and 0 <= dividend <= float(MAX_DIVIDEND_YIELD) * price:
         ratios["dividend_yield"] = dividend / price
 
     shares = num("number_of_shares")

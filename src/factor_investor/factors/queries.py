@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Cache directory for transformed/normalized factors. Bump the version when
 # factor logic changes so stale values are never read. The cache must also be
 # cleared after rebuilding base data (clear_cache()).
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 CACHE_DIR = Path(f"data/factors/cache/v{CACHE_VERSION}")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 

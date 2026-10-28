@@ -1,10 +1,13 @@
 """Service for extracting dividends from reports and building total return series."""
 
+import csv
 import logging
 from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from itertools import pairwise
+from pathlib import Path
 
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -17,6 +20,55 @@ from factor_investor.universe.models import Dividend, TotalReturn
 
 logger = logging.getLogger(__name__)
 
+# Dividends above this fraction of the previous close are treated as data
+# errors: Börsdata can scale report dividends and prices inconsistently after
+# restructurings (see DECISIONS 2026-10-28).
+MAX_DIVIDEND_YIELD = Decimal("0.15")
+
+IMPLAUSIBLE_DIVIDENDS_REPORT = Path("data/logs/implausible_dividends.csv")
+
+
+def _dividends_on_trading_days(
+    trading_days: list[date], dividends: list[tuple[date, Decimal]]
+) -> dict[date, Decimal]:
+    """Move each dividend to the first trading day on or after its ex-date
+    (estimated ex-dates often fall on weekends or holidays) and sum
+    dividends landing on the same day."""
+    div_on_day: dict[date, Decimal] = {}
+    for ex_date, amount in dividends:
+        idx = bisect_left(trading_days, ex_date)
+        if idx < len(trading_days):
+            day = trading_days[idx]
+            div_on_day[day] = div_on_day.get(day, Decimal("0")) + amount
+    return div_on_day
+
+
+def _valid_prices(prices: list[tuple[date, Decimal | None]]) -> list[tuple[date, Decimal]]:
+    return [(d, p) for d, p in prices if p is not None and p > 0]
+
+
+def implausible_dividends(
+    prices: list[tuple[date, Decimal | None]],
+    dividends: list[tuple[date, Decimal]],
+) -> list[tuple[date, Decimal, Decimal]]:
+    """Trading days whose summed dividends exceed MAX_DIVIDEND_YIELD of the
+    previous close. These are treated as data errors and not reinvested.
+
+    Args:
+        prices: (date, close) sorted by date
+        dividends: (ex_date, amount per share)
+
+    Returns:
+        (trading day, summed dividend, previous close), oldest first
+    """
+    valid = _valid_prices(prices)
+    div_on_day = _dividends_on_trading_days([d for d, _ in valid], dividends)
+    return [
+        (day, div_on_day[day], prev_price)
+        for (_, prev_price), (day, _) in pairwise(valid)
+        if day in div_on_day and div_on_day[day] > MAX_DIVIDEND_YIELD * prev_price
+    ]
+
 
 def compute_total_return_index(
     prices: list[tuple[date, Decimal | None]],
@@ -26,9 +78,10 @@ def compute_total_return_index(
 
     TR[t] = TR[t-1] * (price[t] + div[t]) / price[t-1]
 
-    A dividend is applied on the first trading day on or after its ex-date
-    (estimated ex-dates often fall on weekends or holidays). Dividends on the
-    same trading day are summed. Invalid prices (None or <= 0) are skipped.
+    A dividend is applied on the first trading day on or after its ex-date.
+    Dividends on the same trading day are summed. Invalid prices (None or
+    <= 0) are skipped. Implausible dividends (see implausible_dividends) are
+    skipped as data errors.
 
     Args:
         prices: (date, close) sorted by date
@@ -38,15 +91,10 @@ def compute_total_return_index(
         Rows with date, close_price, total_return_index,
         total_return_index_sek (None), dividend_on_date
     """
-    valid = [(d, p) for d, p in prices if p is not None and p > 0]
-    trading_days = [d for d, _ in valid]
-
-    div_on_day: dict[date, Decimal] = {}
-    for ex_date, amount in dividends:
-        idx = bisect_left(trading_days, ex_date)
-        if idx < len(trading_days):
-            day = trading_days[idx]
-            div_on_day[day] = div_on_day.get(day, Decimal("0")) + amount
+    valid = _valid_prices(prices)
+    div_on_day = _dividends_on_trading_days([d for d, _ in valid], dividends)
+    for day, _, _ in implausible_dividends(prices, dividends):
+        del div_on_day[day]
 
     rows = []
     tr_index = Decimal("100.0")
@@ -77,6 +125,8 @@ class BuildStats:
     total_returns_calculated: int
     instruments_with_dividends: int
     instruments_skipped: int = 0
+    implausible_dividends: int = 0
+    instruments_with_implausible_dividends: int = 0
 
 
 class DividendService:
@@ -227,6 +277,7 @@ class DividendService:
 
             total_returns_calculated = 0
             instruments_with_dividends = 0
+            implausible_by_instrument: dict[int, list[tuple[date, Decimal, Decimal]]] = {}
             instruments_skipped = 0
 
             # Process in larger batches for better performance
@@ -243,10 +294,12 @@ class DividendService:
                     instrument_divs = dividends_by_instrument.get(ins_id, [])
 
                     # Calculate TR for this instrument
-                    tr_count, has_divs = self._calculate_total_return_for_instrument(
+                    tr_count, has_divs, implausible = self._calculate_total_return_for_instrument(
                         session, ins_id, instrument_divs
                     )
                     total_returns_calculated += tr_count
+                    if implausible:
+                        implausible_by_instrument[ins_id] = implausible
                     if has_divs:
                         instruments_with_dividends += 1
                 except Exception as e:
@@ -263,12 +316,16 @@ class DividendService:
             # Final commit for remaining instruments
             session.commit()
 
+            self.report_implausible_dividends(session, implausible_by_instrument)
+
         stats = BuildStats(
             total_instruments=total_instruments,
             dividends_extracted=dividends_extracted,
             total_returns_calculated=total_returns_calculated,
             instruments_with_dividends=instruments_with_dividends,
             instruments_skipped=instruments_skipped,
+            implausible_dividends=sum(len(v) for v in implausible_by_instrument.values()),
+            instruments_with_implausible_dividends=len(implausible_by_instrument),
         )
 
         logger.info(
@@ -281,7 +338,7 @@ class DividendService:
 
     def _calculate_total_return_for_instrument(
         self, session: Session, ins_id: int, dividends: list[tuple[date, Decimal]]
-    ) -> tuple[int, bool]:
+    ) -> tuple[int, bool, list[tuple[date, Decimal, Decimal]]]:
         """Calculate total return series for a single instrument.
 
         Args:
@@ -290,7 +347,8 @@ class DividendService:
             dividends: Pre-loaded list of (ex_date, amount) tuples for this instrument
 
         Returns:
-            Tuple of (number of TR rows calculated, has_dividends)
+            Tuple of (number of TR rows calculated, has_dividends,
+            implausible dividends skipped)
         """
         # Get prices
         prices_query = (
@@ -302,13 +360,12 @@ class DividendService:
         price_rows = price_result.fetchall()
 
         if not price_rows:
-            return (0, False)
+            return (0, False, [])
 
+        prices = [(row[0], row[1]) for row in price_rows]
         tr_rows = [
             {"instrument_id": ins_id, **row}
-            for row in compute_total_return_index(
-                [(row[0], row[1]) for row in price_rows], dividends
-            )
+            for row in compute_total_return_index(prices, dividends)
         ]
         has_dividends = any(row["dividend_on_date"] is not None for row in tr_rows)
 
@@ -318,4 +375,65 @@ class DividendService:
             stmt = stmt.on_conflict_do_nothing(constraint="uq_total_returns_ins_date")
             session.execute(stmt)
 
-        return (len(tr_rows), has_dividends)
+        return (len(tr_rows), has_dividends, implausible_dividends(prices, dividends))
+
+    def report_implausible_dividends(
+        self,
+        session: Session,
+        implausible_by_instrument: dict[int, list[tuple[date, Decimal, Decimal]]],
+        path: Path = IMPLAUSIBLE_DIVIDENDS_REPORT,
+    ) -> None:
+        """Log one warning per instrument with skipped dividends and write
+        every skipped dividend to a CSV for auditing (overwritten each build)."""
+        names: dict[int, tuple[str, str | None, int]] = {}
+        if implausible_by_instrument:
+            result = session.execute(
+                text(
+                    "SELECT ins_id, name, ticker, country_id FROM instruments "
+                    "WHERE ins_id = ANY(:ids)"
+                ),
+                {"ids": list(implausible_by_instrument)},
+            )
+            names = {row[0]: (row[1], row[2], row[3]) for row in result}
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "instrument_id",
+                    "name",
+                    "ticker",
+                    "country_id",
+                    "date",
+                    "dividend",
+                    "previous_close",
+                    "yield",
+                ]
+            )
+            for ins_id, skipped in sorted(implausible_by_instrument.items()):
+                name, ticker, country_id = names.get(ins_id, ("?", None, None))
+                max_yield = max(amount / prev for _, amount, prev in skipped)
+                logger.warning(
+                    f"Suspect dividends: {name} ({ticker}, ins_id {ins_id}): "
+                    f"{len(skipped)} skipped, max yield {max_yield:.0%}"
+                )
+                for day, amount, prev in skipped:
+                    writer.writerow(
+                        [
+                            ins_id,
+                            name,
+                            ticker,
+                            country_id,
+                            day,
+                            amount,
+                            prev,
+                            f"{amount / prev:.4f}",
+                        ]
+                    )
+
+        total = sum(len(v) for v in implausible_by_instrument.values())
+        logger.info(
+            f"Skipped {total:,} implausible dividends (> {MAX_DIVIDEND_YIELD:.0%} of previous "
+            f"close) in {len(implausible_by_instrument):,} instruments; details in {path}"
+        )
