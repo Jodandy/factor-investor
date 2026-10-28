@@ -120,7 +120,8 @@ class TestFactorsTemporal:
         """Verify level transformation returns exactly the base metric value.
 
         For a given date, roic_level_raw should exactly match the roic value
-        in fundamental_metrics (no transformation applied).
+        in fundamental_metrics (no transformation applied). Factors are
+        restricted to the eligible universe, so compare against that.
         """
         test_date = date(2024, 1, 31)
 
@@ -128,17 +129,24 @@ class TestFactorsTemporal:
         df_factor = get_factor("roic_level_raw", test_date, use_cache=False)
 
         # Load raw data from DB to compare
+        from sqlalchemy import select
+
         from factor_investor.db import get_session
         from factor_investor.factors.models import FundamentalMetric
-        from sqlalchemy import select
+        from factor_investor.universe.models import UniverseConstituent
 
         with get_session() as session:
             query = select(
                 FundamentalMetric.instrument_id,
                 FundamentalMetric.value,
+            ).join(
+                UniverseConstituent,
+                (UniverseConstituent.instrument_id == FundamentalMetric.instrument_id)
+                & (UniverseConstituent.date == FundamentalMetric.date),
             ).where(
                 FundamentalMetric.metric == "roic",
                 FundamentalMetric.date == test_date,
+                UniverseConstituent.is_eligible,
             )
 
             result = session.execute(query)
@@ -165,7 +173,7 @@ class TestFactorsTemporal:
             f"Level transformation changed values! Max diff: {max_diff}"
         )
 
-        print(f"  ✓ Level transformation matches base metric exactly")
+        print("  ✓ Level transformation matches base metric exactly")
 
     def test_percentile_normalization_range(self):
         """Verify percentile normalization produces values in [0, 100] range."""

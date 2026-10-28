@@ -338,7 +338,32 @@ Dividend / last close on or before the estimated ex-date, over all 79,662 report
 | > 100% | 297 | 203 |
 | max | 580,934× | |
 
-Before the fix, 78 instruments had a final total-return index above 10,000 (base 100), and two overflowed `Numeric(24, 6)`. Normal names (Ericsson, H&M) match. Handling: DECISIONS 2026-10-28 "Cap dividend yield at 15%". Earnings and book value per share may have the same scaling problem; not yet checked.
+Before the fix, 78 instruments had a final total-return index above 10,000 (base 100), and two overflowed `Numeric(24, 6)`. Normal names (Ericsson, H&M) match. Handling: DECISIONS 2026-10-28 "Cap dividend yield at 15%". Earnings and book value per share have the same scaling problem; see the next section.
+
+### Market Cap and Share Counts (checked 2026-10-28)
+
+Price history is adjusted backwards for later corporate actions; report share counts and per-share values are not, or not consistently. Returns are unaffected (the adjusted series gives correct percentage changes), but levels (market cap, P/E, P/B, price) can be wrong.
+
+- Atos (ins_id 18217): price €0.67 at end of 2017 (actually traded around €120), €0.003 at end of 2024, €50 at end of 2025. On 2024-01-31, P/B = 0.000014.
+- Corem Property D (ins_id 2218): price 187 SEK is right, but P/B = 0.000007 (book value per share about 27 million SEK): the D-share report share count is wrong.
+
+Implied share count (`market_cap_local / price`) in `universe_constituents`, jumps of more than 10× between consecutive snapshots:
+
+| | Count |
+|---|---|
+| Jumps | 957 |
+| Instruments with a jump | 636 of 16,988 (3.7%) |
+| Reverting spikes (opposite jump within 13 months) | 242 |
+| Persistent shifts | 599 (556 up, 43 down) |
+| Rows where 60-day median daily turnover > market cap | 3,619 (2,538 eligible) |
+
+- **Spikes:** one report has the share count in the wrong unit and market cap collapses until the next report (2–13 months). Example: Airtel Africa (22733), 4.9 billion → 2,862 for Feb–Apr 2024. Market cap is too small, so the instrument gets almost no weight.
+- **Early-history unit errors:** Lloyds (36563) market cap is about 150,000× too small before 2008-02.
+- **Dangerous direction (market cap inflated):** the share count later drops more than 10×, typically a reverse split applied backwards to prices. 111 instruments have such a drop; at the snapshot before it, 32 were in the top 10% of their country by market cap and 12 in the top 1%. This is not detectable at T (the data looks consistent until the event).
+
+Extreme but arithmetically real ratios also occur (Karnov P/E 20,852 from near-zero earnings) and are kept.
+
+Handling (planned, in the cap-weighting component, no rebuild): skip market cap when a report's share count differs more than 10× from the median of the last four reports; exclude when daily turnover > market cap; cap single-name weights. Equal-weight and rank-based components are unaffected by level errors.
 
 ---
 

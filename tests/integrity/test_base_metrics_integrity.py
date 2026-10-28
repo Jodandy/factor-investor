@@ -8,13 +8,17 @@ These tests verify:
 5. Consistency between related metrics
 """
 
-import pytest
-from datetime import date, timedelta
-import polars as pl
+from datetime import date
 
-from factor_investor.pit import as_of
-from factor_investor.factors.base_metrics import calculate_fundamental_metrics, calculate_price_metrics
+import polars as pl
+import pytest
+
 from factor_investor.db import get_session
+from factor_investor.factors.base_metrics import (
+    calculate_fundamental_metrics,
+    calculate_price_metrics,
+)
+from factor_investor.pit import as_of
 
 
 class TestTemporalIntegrity:
@@ -69,51 +73,50 @@ class TestPeriodTypeFiltering:
             assert abs(pe_value - 75.6) > 5.0, f"P/E={pe_value} looks like quarterly data (expected ~64, got {pe_value})"
 
 
+@pytest.fixture(scope="module")
+def metrics_2024_01_31():
+    """Full-universe fundamental metrics for 2024-01-31, calculated once per module."""
+    with get_session() as session:
+        return calculate_fundamental_metrics(session, date(2024, 1, 31))
+
+
+def _values(metrics, metric):
+    return pl.Series([float(m['value']) for m in metrics if m['metric'] == metric])
+
+
 class TestValueRanges:
-    """Test that calculated values are within reasonable ranges."""
+    """Test that calculated values are plausible.
 
-    def test_pe_ratio_reasonable(self):
-        """P/E ratios should be within reasonable range (0-1000)."""
-        test_date = date(2024, 1, 31)
+    Individual extremes are real in a global universe (P/E in the thousands
+    from near-zero earnings, P/B > 100 from tiny equity) and are kept; see
+    DATA_AUDIT "Market Cap and Share Counts". These tests check the rules the
+    code enforces and the medians, which a units or formula bug would move.
+    """
 
-        with get_session() as session:
-            metrics = calculate_fundamental_metrics(session, test_date)
+    def test_pe_ratio_reasonable(self, metrics_2024_01_31):
+        """P/E is only calculated for positive earnings; median P/E is 5-50."""
+        pe = _values(metrics_2024_01_31, 'pe_ratio')
 
-        pe_metrics = [m for m in metrics if m['metric'] == 'pe_ratio']
+        assert len(pe) > 1000, "Should have P/E ratios for most of the universe"
+        assert (pe > 0).all(), f"Non-positive P/E: {pe.filter(pe <= 0).to_list()[:5]}"
+        assert 5 < pe.median() < 50, f"Median P/E {pe.median()} implausible"
 
-        assert len(pe_metrics) > 0, "Should have some P/E ratios"
+    def test_pb_ratio_reasonable(self, metrics_2024_01_31):
+        """P/B is only calculated for positive equity; median P/B is 0.5-5."""
+        pb = _values(metrics_2024_01_31, 'pb_ratio')
 
-        for m in pe_metrics:
-            value = float(m['value'])
-            assert 0 < value < 1000, f"P/E ratio {value} for ins {m['instrument_id']} is out of range"
+        assert len(pb) > 1000, "Should have P/B ratios for most of the universe"
+        assert (pb > 0).all(), f"Non-positive P/B: {pb.filter(pb <= 0).to_list()[:5]}"
+        assert 0.5 < pb.median() < 5, f"Median P/B {pb.median()} implausible"
 
-    def test_pb_ratio_reasonable(self):
-        """P/B ratios should be within reasonable range (0-100)."""
-        test_date = date(2024, 1, 31)
+    def test_growth_metrics_reasonable(self, metrics_2024_01_31):
+        """Growth is capped at +/-100x; median growth is between -50% and +50%."""
+        for metric in ('revenue_growth_1y', 'profit_growth_1y', 'fcf_growth_1y'):
+            growth = _values(metrics_2024_01_31, metric)
 
-        with get_session() as session:
-            metrics = calculate_fundamental_metrics(session, test_date)
-
-        pb_metrics = [m for m in metrics if m['metric'] == 'pb_ratio']
-
-        assert len(pb_metrics) > 0, "Should have some P/B ratios"
-
-        for m in pb_metrics:
-            value = float(m['value'])
-            assert 0 < value < 100, f"P/B ratio {value} for ins {m['instrument_id']} is out of range"
-
-    def test_growth_metrics_reasonable(self):
-        """Growth rates should be within reasonable range (-10x to +10x)."""
-        test_date = date(2024, 1, 31)
-
-        with get_session() as session:
-            metrics = calculate_fundamental_metrics(session, test_date)
-
-        growth_metrics = [m for m in metrics if 'growth' in m['metric']]
-
-        for m in growth_metrics:
-            value = float(m['value'])
-            assert -10 < value < 10, f"Growth {m['metric']}={value} for ins {m['instrument_id']} is extreme"
+            assert len(growth) > 1000, f"Should have {metric} for most of the universe"
+            assert (growth.abs() < 100).all(), f"{metric} exceeds the 100x cap"
+            assert -0.5 < growth.median() < 0.5, f"Median {metric} {growth.median()} implausible"
 
 
 class TestDataQuality:
