@@ -9,10 +9,12 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +29,9 @@ class Dividend(Base):
     """
 
     __tablename__ = "dividends"
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "ex_date", name="uq_dividends_ins_ex"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     instrument_id: Mapped[int] = mapped_column(
@@ -53,6 +58,9 @@ class TotalReturn(Base):
     """
 
     __tablename__ = "total_returns"
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "date", name="uq_total_returns_ins_date"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     instrument_id: Mapped[int] = mapped_column(
@@ -85,6 +93,10 @@ class UniverseConstituent(Base):
     """
 
     __tablename__ = "universe_constituents"
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "date", name="uq_universe_ins_date"),
+        Index("ix_universe_date_eligible", "date", "is_eligible"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     instrument_id: Mapped[int] = mapped_column(
@@ -121,6 +133,9 @@ class CorporateEvent(Base):
     """
 
     __tablename__ = "corporate_events"
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "event_date", "event_type", name="uq_events_ins_date_type"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     instrument_id: Mapped[int] = mapped_column(

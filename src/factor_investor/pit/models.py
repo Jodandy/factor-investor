@@ -3,7 +3,18 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, Numeric, String, text
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from factor_investor.ingest.models import Base
@@ -23,6 +34,16 @@ class FundamentalPIT(Base):
     """
 
     __tablename__ = "fundamentals_pit"
+    __table_args__ = (
+        UniqueConstraint(
+            "instrument_id", "metric", "period_end", "period_type", "known_from",
+            name="uq_fundamentals_pit",
+        ),
+        Index(
+            "ix_fundamentals_pit_as_of",
+            "instrument_id", "metric", "known_from", text("period_end DESC"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     instrument_id: Mapped[int] = mapped_column(
@@ -37,6 +58,3 @@ class FundamentalPIT(Base):
         DateTime, nullable=False, server_default=text("NOW()")
     )
 
-    # Note: Unique constraint and indexes are defined in the migration
-    # to support versioning: same (instrument, metric, period) can have
-    # multiple rows with different known_from dates (restatements)
