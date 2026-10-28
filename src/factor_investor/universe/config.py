@@ -17,6 +17,10 @@ class UniverseConfig(BaseModel):
     # Data quality filter (minimal)
     min_price: float = 5.0  # Filter out pennystocks (< 5 in local currency)
 
+    # Snapshot price: last close on or before the snapshot date, at most this
+    # many calendar days old (weekends, holidays)
+    max_price_age_days: int = 7
+
     # Countries whose listings are excluded entirely (e.g. Germany: mostly
     # secondary listings of foreign companies; see DECISIONS 2026-10-28)
     exclude_country_ids: list[int] = Field(default_factory=list)

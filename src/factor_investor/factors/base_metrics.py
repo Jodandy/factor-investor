@@ -270,9 +270,9 @@ def calculate_fundamental_metrics(
                     )
 
     # Get prices
-    from factor_investor.universe.queries import get_prices_on_date
+    from factor_investor.universe.queries import get_latest_prices
 
-    prices_df = get_prices_on_date(rebal_date, instrument_ids)
+    prices_df = get_latest_prices(rebal_date, instrument_ids).drop("date")
 
     if len(prices_df) == 0:
         logger.warning(f"No price data for {rebal_date}")
@@ -406,7 +406,7 @@ def calculate_fundamental_metrics(
 
 
 def calculate_price_metrics(
-    session: Session,
+    _session: Session,
     rebal_date: date,
     instrument_ids: list[int] | None = None,
     metrics_filter: list[str] | None = None,
@@ -426,7 +426,7 @@ def calculate_price_metrics(
     4. Return list of metric dicts
 
     Args:
-        session: Database session
+        _session: Database session (unused; kept for a uniform signature)
         rebal_date: Rebalancing date (typically month-end)
         instrument_ids: Optional filter for specific instruments
         metrics_filter: Optional list of specific metrics to calculate (e.g., ['return_1m', 'volatility_60d']).
@@ -446,12 +446,10 @@ def calculate_price_metrics(
 
     # Get instrument IDs if not specified
     if instrument_ids is None:
-        # Get all instruments that have prices on rebal_date
-        from sqlalchemy import select, text
+        # Instruments with a recent price on or before rebal_date
+        from factor_investor.universe.queries import get_latest_prices
 
-        query = text("SELECT DISTINCT instrument_id FROM total_returns WHERE date = :rebal_date")
-        result = session.execute(query, {"rebal_date": rebal_date})
-        instrument_ids = [row[0] for row in result.fetchall()]
+        instrument_ids = get_latest_prices(rebal_date)["instrument_id"].to_list()
 
         if len(instrument_ids) == 0:
             logger.warning(f"No instruments with price data for {rebal_date}")

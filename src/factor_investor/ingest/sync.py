@@ -26,12 +26,18 @@ from factor_investor.ingest.models import (
     StockSplit,
     SyncLog,
 )
+from factor_investor.settings import price_only_instrument_types, stock_instrument_types
 
 logger = logging.getLogger(__name__)
 
 # Börsdata returns only 10 years of prices unless maxCount is given; the API
 # caps history at 20 years, so this requests everything available.
 PRICE_HISTORY_MAX_COUNT = 20 * 365
+
+
+def _price_instrument_types() -> list[int]:
+    """Instrument types synced for prices: stocks plus indices and FX."""
+    return stock_instrument_types() + price_only_instrument_types()
 
 
 def parse_date(date_str: str | None) -> date | None:
@@ -324,7 +330,11 @@ class SyncService:
             try:
                 # Get instrument IDs if not provided
                 if instrument_ids is None:
-                    result = session.execute(select(Instrument.ins_id))
+                    result = session.execute(
+                        select(Instrument.ins_id).where(
+                            Instrument.instrument_type.in_(_price_instrument_types())
+                        )
+                    )
                     instrument_ids = [row[0] for row in result]
 
                 total = 0
@@ -553,7 +563,11 @@ class SyncService:
 
             try:
                 if instrument_ids is None:
-                    result = session.execute(select(Instrument.ins_id))
+                    result = session.execute(
+                        select(Instrument.ins_id).where(
+                            Instrument.instrument_type.in_(stock_instrument_types())
+                        )
+                    )
                     instrument_ids = [row[0] for row in result]
 
                 totals: dict[str, int] = {"year": 0, "quarter": 0, "r12": 0}
@@ -594,9 +608,12 @@ class SyncService:
             sync_log = self._start_sync(session, "reports_resumable")
 
             try:
-                # Get all non-index instruments
+                # Stocks only: indices and FX have no reports
                 query = (
-                    select(Instrument.ins_id).join(Market).where(Market.is_index == False)  # noqa: E712
+                    select(Instrument.ins_id)
+                    .join(Market)
+                    .where(Market.is_index == False)  # noqa: E712
+                    .where(Instrument.instrument_type.in_(stock_instrument_types()))
                 )
                 if not include_global:
                     query = query.where(Instrument.country_id.in_([1, 2, 3, 4]))
@@ -707,8 +724,10 @@ class SyncService:
             sync_log = self._start_sync(session, "prices_resumable")
 
             try:
-                # Get all instruments (including indices for benchmark data)
-                query = select(Instrument.ins_id)
+                # Stocks plus indices and FX (benchmarks, currency conversion)
+                query = select(Instrument.ins_id).where(
+                    Instrument.instrument_type.in_(_price_instrument_types())
+                )
                 if not include_global:
                     query = query.where(Instrument.country_id.in_([1, 2, 3, 4]))
 
@@ -871,7 +890,10 @@ class SyncService:
         with get_session() as session:
             # Get non-index instruments
             result = session.execute(
-                select(Instrument.ins_id).join(Market).where(Market.is_index == False)  # noqa: E712
+                select(Instrument.ins_id)
+                .join(Market)
+                .where(Market.is_index == False)  # noqa: E712
+                .where(Instrument.instrument_type.in_(stock_instrument_types()))
             )
             stock_ids = [row[0] for row in result]
 

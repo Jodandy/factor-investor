@@ -1,6 +1,6 @@
 """Query functions for universe and total returns data."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import polars as pl
 from sqlalchemy import text
@@ -75,43 +75,54 @@ def get_universe(
         )
 
 
-def get_prices_on_date(
+def get_latest_prices(
     as_of_date: date,
     instrument_ids: list[int] | None = None,
+    max_age_days: int | None = None,
 ) -> pl.DataFrame:
-    """Get prices for all instruments on a specific date.
+    """Each instrument's last close on or before as_of_date.
+
+    Markets closed on as_of_date (weekends, holidays) still get a price from
+    their previous trading day. Prices older than max_age_days are ignored.
 
     Args:
-        as_of_date: Date to get prices for
+        as_of_date: Snapshot date; prices after it are never used
         instrument_ids: Optional list of instrument IDs to filter
+        max_age_days: Maximum age in calendar days (None = universe config)
 
     Returns:
-        DataFrame with columns: instrument_id, date, price
+        DataFrame with columns: instrument_id, date (of the price), price
     """
-    query_parts = ["SELECT instrument_id, date, close_price as price FROM total_returns WHERE date = :as_of_date"]
+    from factor_investor.universe.config import load_universe_config
 
-    params: dict[str, date] = {"as_of_date": as_of_date}
+    if max_age_days is None:
+        max_age_days = load_universe_config().max_price_age_days
 
+    query = """
+        SELECT DISTINCT ON (instrument_id) instrument_id, date, close_price AS price
+        FROM total_returns
+        WHERE date <= :as_of_date AND date >= :oldest
+    """
+    params: dict[str, object] = {
+        "as_of_date": as_of_date,
+        "oldest": as_of_date - timedelta(days=max_age_days),
+    }
     if instrument_ids:
-        ids_str = ",".join(str(i) for i in instrument_ids)
-        query_parts.append(f"AND instrument_id IN ({ids_str})")
-
-    query = " ".join(query_parts)
+        query += " AND instrument_id = ANY(:ids)"
+        params["ids"] = list(instrument_ids)
+    query += " ORDER BY instrument_id, date DESC"
 
     with get_session() as session:
-        result = session.execute(text(query), params)
-        rows = result.fetchall()
+        rows = session.execute(text(query), params).fetchall()
 
-        if not rows:
-            return pl.DataFrame(schema={"instrument_id": pl.Int32, "date": pl.Date, "price": pl.Float64})
-
-        return pl.DataFrame(
-            {
-                "instrument_id": [row[0] for row in rows],
-                "date": [row[1] for row in rows],
-                "price": [float(row[2]) if row[2] else None for row in rows],
-            }
-        )
+    return pl.DataFrame(
+        {
+            "instrument_id": [row[0] for row in rows],
+            "date": [row[1] for row in rows],
+            "price": [float(row[2]) if row[2] else None for row in rows],
+        },
+        schema={"instrument_id": pl.Int32, "date": pl.Date, "price": pl.Float64},
+    )
 
 
 def get_total_returns(

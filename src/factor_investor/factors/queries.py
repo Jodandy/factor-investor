@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Cache directory for transformed/normalized factors. Bump the version when
 # factor logic changes so stale values are never read. The cache must also be
 # cleared after rebuilding base data (clear_cache()).
-CACHE_VERSION = 4
+CACHE_VERSION = 5
 CACHE_DIR = Path(f"data/factors/cache/v{CACHE_VERSION}")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -397,9 +397,9 @@ def _get_base_metric(
 
     # Try fundamentals_pit first (CORRECT PIT data)
     # Get month-end dates in the window
-    from factor_investor.universe.universe_service import UniverseService
-    universe_service = UniverseService()
-    month_ends = universe_service._get_month_end_dates(from_date, as_of_date)
+    from factor_investor.dates import month_end_dates
+
+    month_ends = month_end_dates(from_date, as_of_date)
 
     if len(month_ends) > 0:
         # Try loading from fundamentals_pit with proper PIT logic

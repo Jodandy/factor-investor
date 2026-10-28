@@ -299,6 +299,29 @@ ins_id=491, 2024-01-19: open=0.40, high=0.34, low=0.31, close=0.34
 
 **Recommendation:** Filter out days with OHLC violations in universe builder.
 
+### Instrument Types (checked 2026-10-28)
+
+The `instrument` field of the instruments endpoint is not documented. Meanings inferred from example names:
+
+| Type | Count | Inferred meaning | Examples |
+|------|-------|------------------|----------|
+| 0 | 16,624 | Ordinary shares | AAK, ABB |
+| 1 | 19 | Preference shares | Heimstaden Pref |
+| 2 | 8 | Nordic indices | OMX Stockholm 30 |
+| 3 | 56 | Second share class | Handelsbanken B, Industrivärden A, Maersk A |
+| 4 | 34 | Sector indices | OMXS Energy |
+| 5 | 41 | Industry indices | Food & Beverage |
+| 6 | 94 | Currency pairs | USD/EUR |
+| 7 | 7 | Commodities | Gold |
+| 8 | 570 | SPACs (mostly US) | "... Acquisition Corp" |
+| 9 | 379 | ADRs (US) | iQIYI, Harmony Gold |
+| 10 | 9 | US units / equity units | NextEra NEEpS |
+| 11 | 23 | US indices | S&P 500, Nasdaq 100 |
+| 12 | 7 | Crypto | Bitcoin |
+| 13 | 23 | Gross (total return) indices | OMX Stockholm 30 GI |
+
+Crypto and currency pairs have prices on weekends, so the union of all price dates includes Saturdays and Sundays. Handling: DECISIONS 2026-10-28 "Stocks only" and "Snapshot dates".
+
 ### Report Dividends vs Prices (checked 2026-10-28)
 
 Report dividends (DPS) and stock prices are not always scaled consistently. After large restructurings (rights issues, reverse splits, reverse mergers) the price history is adjusted but report per-share values are not, or are adjusted differently.

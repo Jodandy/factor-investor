@@ -712,3 +712,36 @@ Every skipped dividend is logged per instrument (name, count, max yield) during 
 **Alternatives considered:** 50% cutoff (rejected by user as too loose); detecting the scaling mismatch per instrument (more complex, not needed yet); dropping affected instruments entirely (loses their valid price history).
 
 Total returns and base metrics rebuilt with `--force`; factor cache version bumped to 4.
+
+---
+
+## 2026-10-28 | Stocks only; indices and FX for prices only
+
+**Finding:** the universe contained 1,188 non-stock instruments at some point (indices, currencies, commodities, crypto, preference shares, SPACs, units). Börsdata's instrument type codes are undocumented; meanings inferred from names (DATA_AUDIT "Instrument Types").
+
+**Decision (user):** `[instruments]` in settings:
+- `stock_types = [0, 3, 9]` (ordinary shares, second share classes, ADRs): synced with prices and reports, eligible for the universe. Second share classes are kept and deduplicated later (one class per company); ADRs are often the only listing of the company in Börsdata.
+- `price_only_types = [2, 4, 5, 6, 11, 13]` (indices, FX): prices synced for benchmarks and currency conversion, never eligible.
+- All other types (preference shares, commodities, SPACs, units, crypto) are not synced.
+
+Existing rows for dropped types remain in the database but are never eligible.
+
+---
+
+## 2026-10-28 | Snapshot dates: last weekday, per-instrument last price
+
+**Finding:** month-end dates were the last calendar day with any price. Crypto and FX trade on weekends, so 66 of 241 snapshots fell on a weekend and held 1–98 instruments instead of ~8,000 (same for base metrics). Prices were also matched on the exact date, so markets closed that day dropped out entirely: on Dec 31 all Swedish, Finnish and Danish stocks were missing.
+
+**Decision (user):** `factor_investor.dates.month_end_dates` returns the last weekday (Mon–Fri) of each month; used by the universe, base metrics, factor history and strategy rebalancing. Each instrument uses its last close on or before the snapshot date, at most `max_price_age_days = 7` calendar days old (`universe.queries.get_latest_prices`). Only prices on or before the date are used, so no lookahead.
+
+**Alternatives considered:** taking dates from the data (the original bug); requiring a price on the exact date (drops closed markets); one calendar per market (more complex, not needed with the per-instrument lookup).
+
+Factor cache version bumped to 5.
+
+---
+
+## 2026-10-28 | Price glitches: keep for now, exclude later
+
+**Finding:** placeholder prices such as 0.0002 followed by a jump back (Investar Holding 2014-07-01: 0.0002 → 14.20) create fake returns; total-return indices up to 1.8 × 10^7. 2,276 one-day rises above 3× and 2,076 falls below 1/3 in 1,594 stocks (mix of real penny-stock moves and errors).
+
+**Decision (user):** keep the raw data; handle glitches later in a dedicated exclusion/cleaning step. Until then, price metrics and backtests can be distorted for the affected stocks.

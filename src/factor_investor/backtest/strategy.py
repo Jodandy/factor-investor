@@ -396,11 +396,9 @@ class LongOnlyFactorStrategy(Strategy):
         Returns:
             List of rebalancing dates
         """
-        from factor_investor.universe.universe_service import UniverseService
+        from factor_investor.dates import month_end_dates
 
-        # Reuse month-end date calculation from universe service
-        universe_service = UniverseService()
-        month_ends = universe_service._get_month_end_dates(from_date, to_date)
+        month_ends = month_end_dates(from_date, to_date)
 
         if self.rebalancing_frequency == "monthly":
             return month_ends

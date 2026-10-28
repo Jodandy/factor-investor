@@ -1,7 +1,6 @@
 """Service for building investable universe."""
 
 import logging
-from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -11,9 +10,11 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from factor_investor.dates import month_end_dates
 from factor_investor.db import get_session
-from factor_investor.ingest.models import Instrument, StockPrice
+from factor_investor.ingest.models import StockPrice
 from factor_investor.pit import as_of
+from factor_investor.settings import stock_instrument_types
 from factor_investor.universe.config import UniverseConfig, load_universe_config
 from factor_investor.universe.models import UniverseConstituent
 
@@ -65,7 +66,7 @@ class UniverseService:
         logger.info(f"Building monthly universe from {from_date} to {to_date}")
 
         # Get all month-end dates in range
-        month_ends = self._get_month_end_dates(from_date, to_date)
+        month_ends = month_end_dates(from_date, to_date)
         logger.info(f"Found {len(month_ends)} month-end dates to process")
 
         with get_session() as session:
@@ -113,46 +114,6 @@ class UniverseService:
 
         return stats
 
-    def _get_month_end_dates(self, from_date: date, to_date: date) -> list[date]:
-        """Get all month-end dates in range that have price data.
-
-        Returns list of last trading day of each month.
-        """
-        month_ends = []
-        current = date(from_date.year, from_date.month, 1)
-
-        while current <= to_date:
-            # Get last day of month
-            last_day = monthrange(current.year, current.month)[1]
-            month_end = date(current.year, current.month, last_day)
-
-            # Find last trading day (go backward up to 7 days to find a day with prices)
-            with get_session() as session:
-                for offset in range(8):
-                    check_date = month_end - timedelta(days=offset)
-                    if check_date < from_date:
-                        break
-
-                    # Check if this date has price data
-                    result = session.execute(
-                        select(func.count())
-                        .select_from(StockPrice)
-                        .where(StockPrice.date == check_date)
-                    )
-                    count = result.scalar()
-
-                    if count and count > 0:
-                        month_ends.append(check_date)
-                        break
-
-            # Move to next month
-            if current.month == 12:
-                current = date(current.year + 1, 1, 1)
-            else:
-                current = date(current.year, current.month + 1, 1)
-
-        return month_ends
-
     def _build_universe_for_date(
         self, session: Session, as_of_date: date
     ) -> tuple[int, int, dict[str, int]]:
@@ -167,22 +128,27 @@ class UniverseService:
         """
         logger.debug(f"Building universe for {as_of_date}")
 
-        # Get all instruments with price data on this date
-        instruments_query = (
-            select(
-                Instrument.ins_id,
-                Instrument.stock_price_currency,
-                Instrument.country_id,
-                Instrument.market_id,
-                Instrument.sector_id,
-                Instrument.listing_date,
-                StockPrice.close.label("price"),
-            )
-            .join(StockPrice, Instrument.ins_id == StockPrice.ins_id)
-            .where(StockPrice.date == as_of_date)
+        # Stocks with a recent price: each instrument's last close on or before
+        # the snapshot date (its market may be closed that day)
+        instruments_query = text("""
+            SELECT DISTINCT ON (i.ins_id)
+                i.ins_id, i.stock_price_currency, i.country_id, i.market_id,
+                i.sector_id, i.listing_date, s.close AS price
+            FROM stock_prices s
+            JOIN instruments i ON i.ins_id = s.ins_id
+            WHERE s.date <= :as_of_date
+              AND s.date >= :oldest
+              AND i.instrument_type = ANY(:types)
+            ORDER BY i.ins_id, s.date DESC
+        """)
+        result = session.execute(
+            instruments_query,
+            {
+                "as_of_date": as_of_date,
+                "oldest": as_of_date - timedelta(days=self.config.max_price_age_days),
+                "types": stock_instrument_types(),
+            },
         )
-
-        result = session.execute(instruments_query)
         instruments = result.fetchall()
 
         logger.debug(f"Found {len(instruments)} instruments with price data")

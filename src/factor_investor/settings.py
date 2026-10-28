@@ -18,3 +18,14 @@ def execution_delay_days() -> int:
     if delay < 1:
         raise ValueError(f"execution_delay_days must be >= 1 in settings, got {delay}")
     return delay
+
+
+def stock_instrument_types() -> list[int]:
+    """Börsdata instrument types treated as stocks: synced with reports and
+    eligible for the universe."""
+    return list(_load()["instruments"]["stock_types"])
+
+
+def price_only_instrument_types() -> list[int]:
+    """Instrument types synced for prices only (benchmarks, FX), never eligible."""
+    return list(_load()["instruments"]["price_only_types"])

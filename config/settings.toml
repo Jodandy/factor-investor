@@ -18,6 +18,13 @@ annual = 90     # Period end + 90 days
 min_publication_days = 10  # Earlier report_date is treated as missing (placeholder)
 trading_day_buffer = 1  # Additional buffer to prevent same-day trading
 
+[instruments]
+# Börsdata instrument types (meanings inferred from names, see DATA_AUDIT
+# "Instrument Types"). Other types (1 pref, 7 commodity, 8 SPAC, 10 unit,
+# 12 crypto) are not synced.
+stock_types = [0, 3, 9]  # ordinary shares, second share classes, ADRs
+price_only_types = [2, 4, 5, 6, 11, 13]  # indices and FX: benchmarks, never eligible
+
 [universe]
 # PHILOSOPHY: Universe = all instruments with sufficient data quality
 # NO geographic filters, NO market cap cutoffs, NO liquidity requirements
@@ -25,6 +32,10 @@ trading_day_buffer = 1  # Additional buffer to prevent same-day trading
 
 # Data quality filters (minimal - exclude pennystocks and trash data)
 min_price = 5.0  # Filter out pennystocks (< 5 in local currency)
+
+# Snapshot price = last close on or before the snapshot date, at most this many
+# calendar days old (covers weekends and holidays such as Nordic Dec 31)
+max_price_age_days = 7
 
 # Excluded countries (country ids). 8 = Germany: mostly secondary listings of
 # foreign companies (4,326 of 6,094 report in non-EUR currencies)

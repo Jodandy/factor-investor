@@ -58,11 +58,9 @@ class FactorService:
 
         logger.info(f"Building base metrics from {from_date} to {to_date}")
 
-        # Get month-end dates (reuse from universe)
-        from factor_investor.universe.universe_service import UniverseService
+        from factor_investor.dates import month_end_dates
 
-        universe_service = UniverseService()
-        month_ends = universe_service._get_month_end_dates(from_date, to_date)
+        month_ends = month_end_dates(from_date, to_date)
 
         logger.info(f"Found {len(month_ends)} month-end dates to process")
 
