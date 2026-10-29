@@ -26,7 +26,7 @@ import re
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
-from functools import cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -261,7 +261,7 @@ def _engine_for(area: str) -> BacktestEngine:
     return _engine(region.currency if isinstance(region, Region) else None)
 
 
-@cache
+@lru_cache(maxsize=1)  # one stressed price panel (about 5 GB) per process at a time
 def _stressed(
     scenario_json: str, area: str, from_date: date, to_date: date
 ) -> tuple[BacktestEngine, pl.DataFrame]:
