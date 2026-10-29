@@ -124,6 +124,19 @@ Flerårshistorik i stället för ett års siffror: i Sverige lika bra i snitt me
 
 **v2 i Norge, Finland, Danmark och Europa, förregistrerat 2026-10-29**: `h2_composite_{no,fi,dk,eu}_v2`, samma regler som `h2_composite_v2` och samma omsättningsgolv som v1 i respektive marknad, period 2010-01-01–2026-10-27, mot kontrollerna `h0_liquid_equal_weight_{no,fi,dk,eu}_2010`. Frågan: håller v2 minst lika bra som v1 där v1 fungerade, och blir det jämnare?
 
+**Resultat v2 alla marknader 2026-10-29** (trials 314–417; H2 har nu 288 konfigurationer). Överavkastning mot kontrollen, median (min–max), 2010–2026:
+
+| Marknad | v1 | v2 | v2 före kontrollen | v2 PBO | v2 deflaterad Sharpe |
+|---|---|---|---|---|---|
+| SE | +4,1 % (+2,5 – +7,1) | +4,2 % (+3,2 – +7,8) | 24/24 | 63 % | 98 % (192 försök) |
+| NO | +5,1 % (+2,9 – +8,4) | +5,2 % (+2,8 – +8,2) | 24/24 | 47 % | 96 % |
+| FI | +2,9 % (+0,5 – +5,8) | +1,6 % (+0,3 – +4,3) | 24/24 | 36 % | 81 % |
+| DK | +3,1 % (+1,3 – +4,8) | +2,0 % (−0,5 – +4,4) | 23/24 | 50 % | 60 % |
+| EU | +3,7 % (−0,0 – +6,1) | +0,9 % (−3,4 – +3,3) | 17/24 | 47 % | 38 % |
+| USA | −4,1 % (−6,5 – −2,0) | −0,6 % (−2,3 – +0,9) | 6/24 | 76 % | 28 % |
+
+**Slutsats:** v2 är ingen allmän förbättring. Flerårshistorik hjälper i USA, är oförändrad i Sverige och Norge och sämre i Finland, Danmark och särskilt Europa. Ettårssiffrorna i v1 verkar fånga något verkligt (senaste årets lönsamhet och tillväxt, "fundamental momentum") som femårsmedianer späder ut. Att välja version per marknad vore överanpassning. v1 står kvar som huvudversion; v2 visar att resultatet i Europa delvis kommer från färsk information, inte bara stabil kvalitet.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
