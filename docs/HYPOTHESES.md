@@ -104,6 +104,26 @@ Ingen selektion. Finns för att kalibrera motorn och ge baslinjen som allt annat
 
 ---
 
+## H5 — Enkla faktorbaslinjer: värde och momentum
+
+**Idé**: De enklaste kända faktorerna, var för sig: lägst positivt P/E (värde) och högst avkastning senaste 12 månaderna exklusive senaste månaden (momentum, 12-1). Ingen kombination, ingen timing.
+
+**Motivering**: Värde- och momentumpremier är väldokumenterade globalt. Här fungerar de som kontroll av hela kedjan (data, faktorer, motor, kostnader, trial-register) och som baslinjer som mer avancerade hypoteser ska slå. Om inte ens dessa syns i datan är det en varningssignal om datan eller motorn, eller att premierna är små i svenska aktier efter kostnader.
+
+**Selektion**: `top_n_factor_v1`, område SE, period 2008-01-01–2026-10-27, 10 bps kostnad, likavikt. Förregistrerat parameterrum (24 konfigurationer):
+- faktor: `pe_ratio` (lägst, endast positiva) eller `momentum_12_1m` (högst)
+- antal innehav: 20, 30, 50
+- rebalansering: månad, kvartal
+- minsta omsättning (median 60 dagar): ingen, 1 MSEK per dag
+
+**Entry/exit**: köp vid rebalansering (T+1), sälj när bolaget faller ur topp N.
+
+**Portfölj**: likavikt, ingen maxvikt utöver 1/N.
+
+**Falsifieras om**: medianen över parameterrummet inte slår `equal_weight_v1` SE efter kostnader, eller om resultatet hänger på en enstaka parameterkombination eller enstaka år. Jämförs också med percentilen bland 500 slumpportföljer (`random_pick_v1`, k = 30, månadsvis); notera att slumpportföljerna byter hela innehavet varje månad och därmed bär högre kostnader än en strategi med lägre omsättning.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.

@@ -56,6 +56,9 @@ def database_truncated_at_t() -> Iterator[None]:
     def shared_session() -> Iterator[Session]:
         yield session
 
+    # investable_universe is cached per process: without clearing it the
+    # second computation would return the first one's result
+    benchmarks.investable_universe.cache_clear()
     try:
         with pytest.MonkeyPatch.context() as patch:
             for module in (benchmarks, queries, fx, listings):
@@ -64,6 +67,7 @@ def database_truncated_at_t() -> Iterator[None]:
             session.execute(text("DELETE FROM stock_prices WHERE date > :t"), {"t": T})
             yield
     finally:
+        benchmarks.investable_universe.cache_clear()
         session.close()
         transaction.rollback()
         connection.close()

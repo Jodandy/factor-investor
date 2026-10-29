@@ -54,6 +54,8 @@ def register_strategy(strategy_id: str) -> Callable[[StrategyFactory], StrategyF
 
 
 def get_strategy(strategy_id: str) -> RegisteredStrategy:
+    import factor_investor.strategy.library  # noqa: F401  (registers the strategies)
+
     if strategy_id not in STRATEGIES:
         raise KeyError(f"Unknown strategy {strategy_id!r}; registered: {sorted(STRATEGIES)}")
     return STRATEGIES[strategy_id]
