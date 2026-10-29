@@ -104,6 +104,13 @@ Alla viktuppsättningar slår kontrollen i alla marknader (median per uppsättni
 
 **Samlad status H2:** håller i Sverige, Norge, Finland, Danmark och Europa, men inte i USA. Alltså ingen universell premie i den här formen: antingen marknadsspecifik (mindre, mindre bevakade marknader), periodberoende (USA:s tillväxtdominans 2017–2022), eller påverkad av att amerikanska data bara innehåller överlevare (kontrollen av överlevare är ovanligt stark, 11,7 %/år). Kan inte avgöras med dessa data.
 
+**v2, förregistrerat 2026-10-29**: `h2_composite_v2` (SE) och `h2_composite_us_v2` (USA). Som v1 men lönsamhet och tillväxt från bolagets egen historik (en ögonblicksbild per år, samma månad, minst 3 av 5 år), så att ett enskilt år (engångsintäkter) väger mindre:
+- lönsamhet: 5-årsmedian av ROIC, rörelsemarginal, FCF-marginal
+- tillväxt: 5-årsmedian av omsättningstillväxt, andel år med positiv omsättningstillväxt (konsistens), 5-årsmedian av vinsttillväxt
+- värdering, balansräkning, aktieägaravkastning och parameterrum (24) oförändrade
+
+Period 2010-01-01–2026-10-27 (historiken kräver data från 2008); kontrollerna körs om för samma period (`h0_liquid_equal_weight_{se,us}_2010`). Frågan: blir resultatet bättre eller sämre än v1 under samma period, och ändras bilden i USA?
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

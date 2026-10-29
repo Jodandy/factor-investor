@@ -2,5 +2,6 @@
 
 import factor_investor.components.constant
 import factor_investor.components.filters
+import factor_investor.components.history_stat
 import factor_investor.components.portfolio
 import factor_investor.components.scores  # noqa: F401
