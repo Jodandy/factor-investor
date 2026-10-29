@@ -6,7 +6,6 @@ from datetime import date
 
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
 
 from factor_investor.db import get_session
 from factor_investor.factors.base_metrics import (
@@ -36,6 +35,8 @@ class FactorService:
         to_date: date | None = None,
         force_rebuild: bool = False,
         metrics: list[str] | None = None,
+        instrument_ids: list[int] | None = None,
+        price_only: bool = False,
     ) -> BuildStats:
         """Build fundamental + price base metrics for all month-ends.
 
@@ -47,6 +48,9 @@ class FactorService:
             force_rebuild: Delete existing data and rebuild
             metrics: Optional list of specific metrics to build (e.g., ['ev_ebitda', 'operating_cash_flow']).
                     If None, builds all metrics. Useful for incremental updates.
+            instrument_ids: If given, only these instruments: their existing
+                    metrics are deleted per date and recalculated.
+            price_only: Build only price metrics; fundamental metrics untouched.
 
         Returns:
             Build statistics
@@ -76,9 +80,28 @@ class FactorService:
 
             for idx, month_end in enumerate(month_ends):
                 try:
+                    if instrument_ids is not None:
+                        session.execute(
+                            delete(PriceMetric).where(
+                                PriceMetric.date == month_end,
+                                PriceMetric.instrument_id.in_(instrument_ids),
+                            )
+                        )
+                        if not price_only:
+                            session.execute(
+                                delete(FundamentalMetric).where(
+                                    FundamentalMetric.date == month_end,
+                                    FundamentalMetric.instrument_id.in_(instrument_ids),
+                                )
+                            )
+
                     # Calculate fundamental metrics
-                    fund_metrics = calculate_fundamental_metrics(
-                        session, month_end, metrics_filter=metrics
+                    fund_metrics = (
+                        []
+                        if price_only
+                        else calculate_fundamental_metrics(
+                            session, month_end, instrument_ids=instrument_ids, metrics_filter=metrics
+                        )
                     )
 
                     # Batch insert
@@ -92,7 +115,9 @@ class FactorService:
                         total_fund_metrics += len(fund_metrics)
 
                     # Calculate price metrics
-                    price_metrics = calculate_price_metrics(session, month_end, metrics_filter=metrics)
+                    price_metrics = calculate_price_metrics(
+                        session, month_end, instrument_ids=instrument_ids, metrics_filter=metrics
+                    )
 
                     # Batch insert
                     if price_metrics:

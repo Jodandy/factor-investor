@@ -284,9 +284,21 @@ def build_pit(
     console.print("[bold green]✓ PIT build complete[/bold green]")
 
 
+def _read_instrument_ids(path: str | None) -> list[int] | None:
+    """Instrument ids from a file with one id per line (None if no file)."""
+    if path is None:
+        return None
+    from pathlib import Path
+
+    return [int(line) for line in Path(path).read_text().split() if line.strip()]
+
+
 @app.command("build-returns")
 def build_returns(
     force_rebuild: bool = typer.Option(False, "--force", help="Clear existing data and rebuild"),
+    instruments_file: str = typer.Option(
+        None, "--instruments-file", help="Rebuild only these instruments (one id per line)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ) -> None:
     """Build total return series (price + reinvested dividends).
@@ -304,7 +316,9 @@ def build_returns(
         console.print("[yellow]Force rebuild: clearing existing total returns[/yellow]")
 
     service = DividendService()
-    stats = service.build_total_returns(force_rebuild=force_rebuild)
+    stats = service.build_total_returns(
+        instrument_ids=_read_instrument_ids(instruments_file), force_rebuild=force_rebuild
+    )
 
     # Display results
     result_table = Table(title="Total Returns Build Results")
@@ -395,6 +409,14 @@ def build_base_metrics(
     metrics: str = typer.Option(
         None, "--metrics", help="Comma-separated list of metrics to build (e.g., 'ev_ebitda,operating_cash_flow'). If not specified, builds all metrics."
     ),
+    instruments_file: str = typer.Option(
+        None,
+        "--instruments-file",
+        help="Replace metrics only for these instruments (one id per line)",
+    ),
+    price_only: bool = typer.Option(
+        False, "--price-only", help="Build only price metrics (fundamental metrics untouched)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ) -> None:
     """Build fundamental and price base metrics (monthly snapshots).
@@ -435,7 +457,12 @@ def build_base_metrics(
 
     service = FactorService()
     stats = service.build_base_metrics(
-        from_date=start_date, to_date=end_date, force_rebuild=force_rebuild, metrics=metrics_list
+        from_date=start_date,
+        to_date=end_date,
+        force_rebuild=force_rebuild,
+        metrics=metrics_list,
+        instrument_ids=_read_instrument_ids(instruments_file),
+        price_only=price_only,
     )
 
     # Display results

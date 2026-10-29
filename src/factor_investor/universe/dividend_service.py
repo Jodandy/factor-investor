@@ -381,13 +381,13 @@ class DividendService:
                     )
 
                 try:
-                    # Get dividends for this instrument from pre-loaded dict
-                    instrument_divs = dividends_by_instrument.get(ins_id, [])
-
-                    # Calculate TR for this instrument
-                    tr_count, has_divs, implausible = self._calculate_total_return_for_instrument(
-                        session, ins_id, instrument_divs
-                    )
+                    # Savepoint per instrument: an error undoes only this one
+                    with session.begin_nested():
+                        tr_count, has_divs, implausible = (
+                            self._calculate_total_return_for_instrument(
+                                session, ins_id, dividends_by_instrument.get(ins_id, [])
+                            )
+                        )
                     total_returns_calculated += tr_count
                     if implausible:
                         implausible_by_instrument[ins_id] = implausible
@@ -396,7 +396,6 @@ class DividendService:
                 except Exception as e:
                     logger.error(f"Error calculating TR for instrument {ins_id}: {e}")
                     instruments_skipped += 1
-                    session.rollback()  # Rollback this instrument, continue with next
                     continue
 
                 # Commit in batches to avoid massive transactions
@@ -460,11 +459,11 @@ class DividendService:
         ]
         has_dividends = any(row["dividend_on_date"] is not None for row in tr_rows)
 
-        # Batch insert
+        # Replace the instrument's series, so rebuilding a subset of
+        # instruments without force_rebuild updates them
+        session.execute(delete(TotalReturn).where(TotalReturn.instrument_id == ins_id))
         if tr_rows:
-            stmt = pg_insert(TotalReturn).values(tr_rows)
-            stmt = stmt.on_conflict_do_nothing(constraint="uq_total_returns_ins_date")
-            session.execute(stmt)
+            session.execute(pg_insert(TotalReturn).values(tr_rows))
 
         return (len(tr_rows), has_dividends, implausible_dividends(prices, dividends))
 
