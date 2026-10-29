@@ -262,6 +262,15 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 **Falsifieras om**: den vanliga värdekompositen inte slår kontrollen, eller bara i enstaka tidsblock.
 
+**Resultat 2026-10-30** (trials 629–646): vanlig värdekomposit 15,1 %/år (kontrollen 9,7 %), +5,3 %/år, slår kontrollen i 7 av 8 block (svagt 2017–2019), Sharpe 0,66, största drawdown −50 %. Inte falsifierad.
+
+Överläggen (median över övriga val, mot vanlig värdekomposit):
+- **stops** lyfter både avkastning och risk: stop 20 % −0,6 %/år men Sharpe 0,58 → 0,83 och drawdown −45 % → −22 %; utan timing och med bara exits som säljer: stop 30 % 18,2 %/år (+3,1, slår referensen i 6 av 8 block), stop 20 % 16,6 % (+1,6, 7 av 8 block).
+- **timing** (200 d eller utbrott) kostar ~2,3 %/år men sänker drawdown; bäst riskjusterat 200 d + stop 20 % + bara exits säljer: 14,7 %, Sharpe 0,90, drawdown −21 %.
+- **behålla hårt utan exits** sämst (9,9 %/år).
+
+Värdekompositen är den strategi där stops hjälper mest: den har störst drawdown utan dem.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
