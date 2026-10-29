@@ -280,6 +280,20 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 Samma bedömning som för H2. Frågan: hjälper stops och timing momentum (känd för plötsliga krascher) mer än kvalitets- och värdestrategierna?
 
+**Resultat 2026-10-30** (trials 592–628; kontrollen månadsvis likavikt 9,5 %/år):
+
+| | Referens (vanlig) | Bästa riskjusterade | Timing, median mot referens | Stops, median mot referens |
+|---|---|---|---|---|
+| Momentum (H5) | 10,1 %/år, Sharpe 0,44, drawdown −53 % | utbrott 50 d + stop 20 % + bara exits säljer: 14,0 %, Sharpe 0,80, −26 % | utbrott: +0,9 %/år, Sharpe 0,69, drawdown −28 %, slår referensen i 5 av 8 block; 200 d: ±0 | ±0, drawdown oförändrad eller sämre utan timing |
+| Magiska formeln (H6) | 19,3 %/år, Sharpe 0,90, drawdown −27 % | stop 20 % + sälj på rank: 18,8 %, Sharpe 0,95, −22 % | −4,7 till −5,3 %/år, Sharpe ~0,85, slår referensen i 1–2 av 8 block | −0,4 till −1,6 %/år, drawdown −22 till −25 % |
+
+**Slutsats över H2, momentum och magiska formeln:**
+- **Timing som inträdesfilter** kostar avkastning för kvalitets- och värdestrategier (H2 −2,5 till −3,6 %/år, magiska formeln ~−5 %/år): billiga bolag köps ofta innan trenden vänt, och det är där avkastningen finns. Drawdown minskar.
+- **Momentum gynnas av utbrottstiming**, konsekvent över kombinationerna: Sharpe 0,44 → ~0,69, drawdown −53 % → ~−28 %. Utbrott bekräftar momentum; 200-dagars medel gör det inte.
+- **Trailing stops** är milda riskreducerare för kvalitet och värde (ungefär oförändrad avkastning, lägre drawdown), men hjälper inte momentum utan timing.
+- **Behålla hårt utan exits** är sämst i alla tre.
+- Momentum på det likvida universumet slår kontrollen knappt (+0,6 %/år) utan överlägg. Försöken räknas: H5 +18, H6 +18.
+
 
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.
 
