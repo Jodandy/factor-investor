@@ -40,6 +40,8 @@ class ComponentKind(StrEnum):
     FILTER = "filter"
     SCORE = "score"
     PORTFOLIO = "portfolio"
+    SIGNAL = "signal"  # daily clock: timing
+    EXIT = "exit"  # daily clock: closing positions
 
 
 class ComponentParams(BaseModel):
@@ -85,6 +87,32 @@ class PortfolioComponent(Component):
     @abstractmethod
     def run(self, ranked: pl.DataFrame, current: list[int]) -> pl.DataFrame:
         """[instrument_id, weight] from composite scores and current holdings."""
+
+
+class DailyPriceView(Protocol):
+    @property
+    def as_of(self) -> date: ...
+
+    def prices(self, instruments: list[int], days: int) -> Any:
+        """(days, instruments) array of daily prices ending on as_of, NaN if missing."""
+        ...
+
+
+class SignalComponent(Component):
+    kind = ComponentKind.SIGNAL
+
+    @abstractmethod
+    def run(self, view: DailyPriceView, instruments: list[int]) -> set[int]:
+        """The instruments for which the signal is on, as of the view's date."""
+
+
+class ExitComponent(Component):
+    kind = ComponentKind.EXIT
+
+    @abstractmethod
+    def run(self, positions: pl.DataFrame) -> set[int]:
+        """Positions to close, from [instrument_id, entry_price, high, price]
+        (high = highest daily price since entry, price = today's)."""
 
 
 COMPONENTS: dict[str, type[Component]] = {}

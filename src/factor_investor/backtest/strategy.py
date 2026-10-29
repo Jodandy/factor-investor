@@ -186,6 +186,11 @@ class Strategy(ABC):
         """
         return 0.10
 
+    @property
+    def uses_daily_clock(self) -> bool:
+        """Whether the engine should call on_day (default: if it is overridden)."""
+        return type(self).on_day is not Strategy.on_day
+
     def on_day(
         self,
         as_of_date: date,  # noqa: ARG002

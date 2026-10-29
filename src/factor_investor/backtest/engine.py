@@ -213,7 +213,7 @@ class BacktestEngine:
         last_price_date: dict[int, date] = {}
         previous_value = portfolio.total_value
 
-        uses_daily_clock = type(strategy).on_day is not Strategy.on_day
+        uses_daily_clock = strategy.uses_daily_clock
 
         for day_idx, current_date in enumerate(trading_days):
             signal_today = False

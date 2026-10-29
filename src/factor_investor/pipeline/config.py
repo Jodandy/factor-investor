@@ -56,6 +56,12 @@ class StrategyConfig(BaseModel):
     universe: list[ComponentSpec] = Field(default_factory=list)
     scoring: Scoring
     portfolio: ComponentSpec
+    # Daily clock (stages 3-5): new positions only when every timing signal is
+    # on (candidates wait on a watchlist until the next rebalancing); exits are
+    # checked every day; with sell_on_rank false, holdings are only sold by exits.
+    timing: list[ComponentSpec] = Field(default_factory=list)
+    exits: list[ComponentSpec] = Field(default_factory=list)
+    sell_on_rank: bool = True
 
     @field_validator("id")
     @classmethod
@@ -80,6 +86,10 @@ class StrategyConfig(BaseModel):
         for block in self.scoring.blocks:
             block.check(ComponentKind.SCORE)
         self.portfolio.check(ComponentKind.PORTFOLIO)
+        for spec in self.timing:
+            spec.check(ComponentKind.SIGNAL)
+        for spec in self.exits:
+            spec.check(ComponentKind.EXIT)
         return self
 
 

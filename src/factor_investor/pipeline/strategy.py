@@ -1,23 +1,41 @@
-"""Pipeline strategy (ARCHITECTURE §2, rebalance clock): universe filters,
-weighted score blocks, portfolio component. Stages 3-5 on the daily clock
-(timing, entries, exits) are not implemented yet.
+"""Pipeline strategy (ARCHITECTURE §2): universe filters, weighted score
+blocks and a portfolio component on the rebalance clock; optionally timing
+signals and exits on the daily clock.
+
+Daily mode (any timing or exit component, or sell_on_rank false):
+- on a rebalancing date the portfolio component's selection gives the slots
+  (its size) and the candidates in rank order. Holdings outside the selection
+  are sold if sell_on_rank. Candidates whose timing signals are all on are
+  bought (1/slots each, rank order, up to the free slots); the others wait on
+  a watchlist. Kept holdings are resized to 1/slots, as without daily mode.
+- every other trading day, after the day's trades: positions track their
+  entry price and highest price; exits close positions; watchlist names whose
+  signals turn on fill free slots. Untouched positions are kept as they are
+  (no daily resizing). A name closed by an exit is not bought again before the
+  next rebalancing.
+Decisions on day T use prices up to T; the engine executes them from T+1.
 """
 
 from datetime import date
+from typing import Any
 
 import polars as pl
 
+from factor_investor.backtest.portfolio import Portfolio
 from factor_investor.backtest.strategy import Strategy, TargetPortfolio
 from factor_investor.components.base import (
     SCORE_SCHEMA,
     WEIGHT_SCHEMA,
+    ExitComponent,
     FilterComponent,
     PortfolioComponent,
     ScoreComponent,
+    SignalComponent,
     build_component,
 )
 from factor_investor.dates import month_end_dates
 from factor_investor.pipeline.config import StrategyConfig
+from factor_investor.pipeline.daily import DailyPrices, DailyView, daily_prices
 from factor_investor.pipeline.view import PointInTimeView
 
 REBALANCE_MONTHS = {
@@ -56,7 +74,7 @@ def combine_scores(blocks: list[tuple[pl.DataFrame, float]], min_coverage: float
 
 
 class PipelineStrategy(Strategy):
-    def __init__(self, config: StrategyConfig) -> None:
+    def __init__(self, config: StrategyConfig, daily: DailyPrices | None = None) -> None:
         from factor_investor.benchmarks.run import AREAS
 
         self.config = config
@@ -69,6 +87,28 @@ class PipelineStrategy(Strategy):
         assert all(isinstance(f, FilterComponent) for f in self.filters)
         assert all(isinstance(c, ScoreComponent) for c, _ in self.blocks)
         assert isinstance(self.portfolio, PortfolioComponent)
+        self.timing = [build_component(s.component, s.params) for s in config.timing]
+        self.exits = [build_component(s.component, s.params) for s in config.exits]
+        self.daily_mode = bool(self.timing or self.exits or not config.sell_on_rank)
+        self._daily = daily
+        # daily-mode state
+        self.slots = 0
+        self.watchlist: list[int] = []
+        self.exited: set[int] = set()
+        self.positions: dict[int, tuple[float, float]] = {}  # id -> (entry price, high)
+        # buys ordered but not yet filled: a new target replaces unfilled
+        # orders in the engine, so they are repeated until they are held
+        self.ordered: set[int] = set()
+
+    @property
+    def uses_daily_clock(self) -> bool:
+        return self.daily_mode
+
+    @property
+    def daily(self) -> DailyPrices:
+        if self._daily is None:
+            self._daily = daily_prices(self.config.area)
+        return self._daily
 
     @property
     def name(self) -> str:
@@ -108,11 +148,93 @@ class PipelineStrategy(Strategy):
         )
         assert isinstance(self.portfolio, PortfolioComponent)
         weights = self.portfolio.run(composite, current)
-        return TargetPortfolio(
-            weights,
-            metadata={
-                "universe_size": universe_size,
-                "after_filters": len(instruments),
-                "scored": int(composite["score"].is_not_null().sum()),
-            },
+        metadata = {
+            "universe_size": universe_size,
+            "after_filters": len(instruments),
+            "scored": int(composite["score"].is_not_null().sum()),
+        }
+        if not self.daily_mode:
+            return TargetPortfolio(weights, metadata=metadata)
+
+        rank = dict(composite.drop_nulls("score").select("instrument_id", "score").rows())
+        selection = sorted(weights["instrument_id"].to_list(), key=lambda i: (-rank[i], i))
+        held = set(current)
+        kept = [i for i in current if i in selection] if self.config.sell_on_rank else list(current)
+        self.slots = len(selection)
+        self.exited = set()
+        candidates = [i for i in selection if i not in held]
+        buys = self._entries(as_of_date, candidates, self.slots - len(kept))
+        self.watchlist = [i for i in candidates if i not in buys]
+        self.ordered = set(buys)
+        metadata["watchlist"] = len(self.watchlist)
+        return self._target(kept + buys, keep=frozenset(), metadata=metadata)
+
+    def _entries(self, as_of: date, candidates: list[int], free: int) -> list[int]:
+        """Up to `free` candidates, in order, whose timing signals are all on."""
+        if free <= 0 or not candidates:
+            return []
+        on = set(candidates)
+        view = DailyView(self.daily, as_of)
+        for component in self.timing:
+            assert isinstance(component, SignalComponent)
+            on &= component.run(view, candidates)
+        return [i for i in candidates if i in on][:free]
+
+    def _target(
+        self, names: list[int], keep: frozenset[int], metadata: dict[str, Any] | None = None
+    ) -> TargetPortfolio:
+        # 1/slots of portfolio value, normalized by the engine's own function as
+        # for a full equal-weight target, so a fully invested daily-mode
+        # portfolio is bit-identical to the plain strategy
+        weight = (
+            Portfolio.normalize_weights(
+                pl.DataFrame({"weight": [1 / self.slots] * self.slots}), 1.0
+            )["weight"][0]
+            if self.slots
+            else 0.0
         )
+        return TargetPortfolio(
+            pl.DataFrame(
+                {"instrument_id": names, "weight": [weight] * len(names)}, schema=WEIGHT_SCHEMA
+            ),
+            metadata=metadata,
+            keep=keep,
+            normalize=False,
+        )
+
+    def on_day(self, as_of_date: date, holdings: pl.DataFrame) -> TargetPortfolio | None:
+        if not self.daily_mode:
+            return None
+        prices = dict(holdings.select("instrument_id", "price").rows())
+        # entry price and highest price since entry, for every position held today
+        positions = {}
+        for i, price in prices.items():
+            entry, high = self.positions.get(i, (price, price))
+            positions[i] = (entry, max(high, price))
+        self.positions = positions
+        closing: set[int] = set()
+        if self.exits and self.positions:
+            frame = pl.DataFrame(
+                [(i, e, h, prices[i]) for i, (e, h) in self.positions.items()],
+                schema={
+                    "instrument_id": pl.Int32,
+                    "entry_price": pl.Float64,
+                    "high": pl.Float64,
+                    "price": pl.Float64,
+                },
+                orient="row",
+            )
+            for component in self.exits:
+                assert isinstance(component, ExitComponent)
+                closing |= component.run(frame)
+        held = set(prices)
+        self.ordered -= held
+        candidates = [i for i in self.watchlist if i not in held and i not in self.exited]
+        free = self.slots - (len(held) - len(closing)) - len(self.ordered)
+        buys = self._entries(as_of_date, candidates, free)
+        if not closing and not buys:
+            return None
+        self.exited |= closing
+        self.watchlist = [i for i in self.watchlist if i not in buys]
+        self.ordered |= set(buys)
+        return self._target(sorted(self.ordered), keep=frozenset(held - closing))

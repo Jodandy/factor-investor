@@ -964,3 +964,16 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Trial counts:** stress runs are logged and count as configurations of their hypothesis (conservative for the deflated Sharpe ratio).
 
 **Alternatives considered:** deleting failed companies' later prices (the price filter and stale-price rule would sell them at their last normal price, hiding the loss); failing uniformly at random (real failures concentrate in weak companies); estimating the bias analytically only (no measurement).
+
+---
+
+## 2026-10-29 | Daily clock (phases 1-2): daily hook, timing signals, exits
+
+**Decision (user approved the plan):** ARCHITECTURE stages 3-5 in a first form.
+- **Engine** (phase 1): `Strategy.on_day(date, holdings)` runs after each trading day's trades, except on rebalancing-signal days; a returned target executes from the next trading day like any signal. `TargetPortfolio.keep` leaves positions untouched; `normalize=False` takes weights as fractions of portfolio value. The engine only calls the hook when `strategy.uses_daily_clock`. Accepted by reproducing logged H2, top_n_factor and benchmark results exactly.
+- **Daily prices** (`pipeline/daily.py`): one area's daily total return index from the engine's filtered price panel (converted to the area's currency for regions); a `DailyView` cuts every window at its date.
+- **Components:** `signal` kind (`price_above_ma_v1`: latest price above its N-day mean; `breakout_v1`: latest price at or above the previous N days' high) and `exit` kind (`trailing_stop_v1`: price at least `pct` below the highest price since entry). One file each.
+- **Pipeline daily mode** (YAML `timing`, `exits`, `sell_on_rank`): on rebalancing dates candidates with all timing signals on are bought (1/slots each, in rank order), the rest wait on a watchlist checked daily; exits run daily; with `sell_on_rank: false` only exits sell. Positions not traded are kept as they are (no daily resizing). Ordered but unfilled buys are repeated in later targets (a new target replaces unfilled orders in the engine). A name closed by an exit waits for the next rebalancing.
+- **Acceptance:** daily mode with an exit that never triggers is bit-identical to the plain strategy (weights normalized by the engine's own function); a two-year run on prices truncated at T gives identical trades; a trend filter changes the trades (buys between rebalancing dates).
+
+**Not yet:** tranches and pyramiding, sizing other than equal weight, fundamentals-based exits, volume components (accumulation), order reasons in the trade log.
