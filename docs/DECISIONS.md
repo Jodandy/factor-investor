@@ -689,6 +689,8 @@ The user accepted these known, minor risks rather than mitigating them now:
 
 **Decision (user):** exclude all German listings (`[universe] exclude_country_ids = [8]`), since primary and secondary listings cannot be told apart reliably. Accepts losing genuine German primaries.
 
+**Superseded 2026-10-29** by "German companies back in the universe" (below): the ISIN country tells them apart.
+
 **Also:** factor normalization (percentiles, z-scores, ranks) is computed only over instruments eligible in the universe on that date, so excluded listings cannot affect other companies' scores (`factors.queries._eligible_instruments`). Factor cache version bumped to 3.
 
 **Open:** remaining duplicates (share classes, other cross-listings) still to be handled.
@@ -838,3 +840,53 @@ Benchmarks are not strategy trials: they are not selected by a search, so they a
 **Known limit:** persistent wrong levels are not caught. Transferator B ×12.2 on 2010-04-12 held for three years and dropped ×1/11.5 on 2013-05-08, with volume falling about 100-fold at the first jump (likely a reverse split missing from the adjustment). Börsdata keeps only one year of splits, so this cannot be checked against split data.
 
 **Alternatives considered:** removing moves that reverse within N days (uses later prices to judge earlier ones: lookahead); a fixed number of days without the volume condition (repeated quotes confirm bad prints); volume condition without a cap (stale holdings sold at prices from before a real crash); a minimum price level (split-adjusted prices, see "No minimum price").
+
+---
+
+## 2026-10-29 | German companies back in the universe
+
+**Decision (user):** in Germany only listings with a German ISIN are eligible (`[universe.domestic_only] 8 = "DE"`; other listings get exclusion reason `foreign_listing`). Brings back SAP, Siemens, Deutsche Telekom, Allianz and 440 other German companies (444 eligible on 2024-01-31) while the foreign secondary listings stay out. Rebuilt with `build-universe --instruments-file` for all 6,094 German listings (about 40 minutes). Total returns and base metrics already existed for them.
+
+**Check:** `cap_weight_v1` on German companies vs DAX (total return) 2008–2026: CAGR 5.84% vs 6.37%, monthly correlation 0.978.
+
+**Alternatives considered:** keeping Germany out (Europe would miss its second-largest market); the domestic rule in other countries too (Swedish listings of Nokia or AstraZeneca are real local listings; strategies and benchmarks choose their own universe).
+
+---
+
+## 2026-10-29 | US and Europe benchmarks; prices in one currency
+
+**Decision (user):** benchmark areas `US` (USD) and `EU` (like Stoxx Europe 600: Nordics, UK, Germany, France, Spain, Portugal, Italy, Switzerland, Belgium, Netherlands, Poland; in EUR), each country's domestic companies by the ISIN rule. A `Region` converts:
+- **prices:** the price panel is converted to the region's currency (`load_price_panel(currency=...)`, `convert_currency`), each price with the last USD/XXX quotes on or before its date, at most 7 days old (no later quote is used). A total return index converted this way is the total return in the base currency.
+- **market caps** for cap weighting: with the rates of the snapshot date (`with_base_currency`).
+
+UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by the rule.
+
+**Saved results:** `factor-investor benchmarks run` writes daily returns to `data/benchmarks/` (`<benchmark>_<area>.parquet`, random seeds in `random_pick_v1_<area>_k<k>/`), with what was run in the file metadata (`read_metadata`). Runs are deterministic and can be regenerated.
+
+**Alternatives considered:** Eurozone only (no conversion, but leaves out the UK, Switzerland and the Nordics); converting returns rather than prices (equivalent, but the engine works on prices).
+
+---
+
+## 2026-10-29 | `price_filter_v2`: confirmed rises above 10× are missing reverse splits
+
+**Finding:** Börsdata leaves some reverse splits out of the price adjustment. Atos 2025-04-30 (its 1:10,000 reverse split) shows a one-day ×10,217 that holds, so `price_filter_v1` confirmed it; in `equal_weight_v1` Europe that one name added +261% in a day (CAGR 27.5%, volatility 69%). Others: Dolfines ×3,535, Curatis ×2,709, Ming Le Sports ×1,200, SA Commerciale de Brasserie ×586, Transferator B ×12.2.
+
+**Decision:** a confirmed rise beyond `SPLIT_BAND = 10` is scaled away: from the confirming day the series is multiplied so the move disappears, and a held position keeps its value. Falls are never rescaled: a real crash is a real loss, and a forward split missing from the adjustment shows as a loss, so data errors can only lower returns. Decided on that day from earlier prices only (the truncation test still passes). `price_filter_v1` was never used in a logged run.
+
+**Effect:** `equal_weight_v1` Europe CAGR 27.5% → 8.1%; Sweden CAGR 10.02% → 9.63%; cap-weighted results unchanged within 0.1 points.
+
+**Cost:** a genuine one-day rise above 10× that holds (rare: biotech news) loses its gain. Accepted as conservative.
+
+**Alternatives considered:** removing instruments after such a move (also drops real later returns, and decides from a move only seen after it happened); a lower split band (3× to 10× moves include real ones, e.g. takeovers of penny stocks).
+
+---
+
+## 2026-10-29 | `cap_weight_v1` amended: no zero turnover, no impossible market caps
+
+**Finding:** for some US microcaps with many reverse splits, the split-adjusted price is huge while the share count is not adjusted: Wheeler REIT 2017-05-31 price 5.2e11 USD, market cap 4.5e18 USD; Sunshine Biopharma 3.3e17; Jaguar Health 7.7e15. Three such names each got the 10% cap, 30% of the US benchmark (US cap CAGR 8.4% with dividends vs 8.6% without, volatility 22%). `get_universe` also returned zero turnover as None (`float(x) if x else None`), so the turnover guard never saw the zeros.
+
+**Decision:** `cap_weight_v1` also drops names with zero median turnover (not investable for an index fund; new listings without 60 days of history are kept) and market caps above `MAX_MARKET_CAP_USD = 1e13` (the largest company ever was worth about 5e12 USD). `get_universe` keeps zeros. No logged run used `cap_weight_v1`, so it is amended, as on 2026-10-29 for the ISIN rule.
+
+**Effect:** US cap-weighted 11.80% with dividends, 9.82% without vs S&P 500 9.27% (price index), monthly correlation 0.993. Nordic cap-weighted results change by at most 0.03 points.
+
+**Alternatives considered:** a minimum turnover-to-market-cap ratio (does not separate them: their ratios overlap with real A shares such as Ericsson A); a weight limit relative to the rest of the market (Novo Nordisk is about half of the Danish universe).

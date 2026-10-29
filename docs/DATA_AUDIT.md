@@ -386,31 +386,40 @@ Handling (planned, in the cap-weighting component, no rebuild): skip market cap 
 
 **Equal-weighted Sweden:** CAGR rose from 6.5% to 10.1% once stocks below 5 SEK became eligible. Held positions had 157 one-day moves above 3× or below 1/3 (Transferator B ×12.2 on 2010-04-12, Kvix ×14.6 on 2024-11-08). With extreme moves withheld until confirmed (`price_filter_v1`, DECISIONS 2026-10-29) the CAGR is 10.02%, so glitches explain little of the rise. Most of it is the minimum price itself: on split-adjusted prices, a 5 SEK threshold excluded stocks that later split, which are mostly past winners. Year by year, equal weighting follows OMX Stockholm Small Cap PI closely (2015 +48% vs +50%, 2023 −9% vs −6%); 10.0% against the index's 7.45% price return (about 9.5% with dividends) fits an equal-weighted universe that includes First North.
 
-### Nordic Benchmarks and Random Portfolios (checked 2026-10-29)
+### Benchmarks vs Indices (checked 2026-10-29)
 
-Period 2008-01-02..2026-10-27, monthly statistics, 10 bps costs, `price_filter_v1`.
+Saved in `data/benchmarks/` (`factor-investor benchmarks run`). Period 2008-01-02..2026-10-27, monthly statistics, 10 bps costs, `price_filter_v2`, `cap_weight_v1` with the zero-turnover and 10-trillion-USD guards. "Price only" is a diagnostic run on prices without dividends, for indices that exclude dividends.
 
-| Market | Index (total return) | Index CAGR | `cap_weight_v1` | corr | TE | uncapped | uncapped TE | `equal_weight_v1` |
-|---|---|---|---|---|---|---|---|---|
-| SE | OMX Stockholm GI | 10.05% | 9.92% | 0.996 | 1.6% | 9.78% | 1.7% | 10.02% |
-| NO | OSEBX | 8.09% | 9.47% | 0.963 | 4.8% | 8.77% | 4.9% | 6.41% |
-| FI | OMX Helsinki GI | 5.35% | 7.57% | 0.979 | 3.5% | 5.08% | 2.8% | 5.03% |
-| DK | OMX Copenhagen GI | 8.44% | 9.24% | 0.912 | 7.5% | 9.23% | 3.3% | 6.77% |
+| Area | Index | Index CAGR | `cap_weight_v1` | corr | TE | `equal_weight_v1` |
+|---|---|---|---|---|---|---|
+| SE | OMX Stockholm GI (total return) | 10.05% | 9.92% | 0.996 | 1.6% | 9.63% |
+| NO | OSEBX (total return) | 8.09% | 9.50% | 0.963 | 4.8% | 5.73% |
+| FI | OMX Helsinki GI (total return) | 5.35% | 7.58% | 0.979 | 3.5% | 4.06% |
+| DK | OMX Copenhagen GI (total return) | 8.44% | 9.24% | 0.912 | 7.5% | 5.72% |
+| US | S&P 500 (price) | 9.27% | 11.80%; price only 9.82% (corr 0.995, TE 1.6%) | 0.993 | 1.8% | 13.66% |
+| EU | Stoxx Europe 600 (price) | 3.13% | 6.70%; price only 3.30% (corr 0.987, TE 2.3%) | 0.985 | 2.5% | 8.07% |
+| DE (check) | DAX (total return) | 6.37% | 5.84% | 0.978 | 3.7% | |
 
-- **Finland:** the 10% cap explains the gap (Nokia was over 30% of the index in 2008 and then collapsed); uncapped tracks within 0.3 points a year.
-- **Denmark:** the cap explains the low correlation (Novo Nordisk); uncapped, correlation 0.986.
-- **Norway:** about 0.7 points a year remain uncapped. Including foreign ISINs (Bermuda and Cyprus shipping companies) does not close it (8.51%). OSEBX weights by free float and holds about 70 stocks; the Norwegian state owns large stakes in Equinor (67%), Telenor, Hydro and DNB, which we weight at full market cap.
-- Other expected differences: Börsdata lacks delisted companies (our returns are upper bounds), monthly rebalancing and costs vs a continuously weighted index.
+- **Finland, Denmark:** the 10% cap explains the gaps (Nokia over 30% of Helsinki in 2008, Novo Nordisk about half of Copenhagen). Uncapped: Finland 5.08% (TE 2.8%), Denmark 9.23% (correlation 0.986).
+- **Norway:** about 0.7 points a year remain uncapped (8.77%); foreign ISINs do not explain it (8.51% with them). OSEBX weights by free float and holds about 70 stocks; the state owns large stakes in Equinor (67%), Telenor, Hydro and DNB.
+- **US and Europe:** price-only versions track the price indices within 0.2–0.6 points a year; dividends add 2.0 (US) and 3.4 (Europe) points. The US excess (0.55 points) fits a universe broader than the 500 largest plus survivorship.
+- **US equal weight is not usable:** Börsdata has only US companies listed today. The US universe holds 1,625 companies at the end of 2008 (about 5,000 were listed), rising to 3,021 in 2025, so equal weighting is a portfolio of survivors (13.7% vs Russell 2000 at 7.2% price).
+- **Börsdata lacks delisted companies everywhere**, so all backtest returns are upper bounds; the effect is largest for equal weighting and small companies.
+
+**Data errors found on the way:**
+- **Reverse splits missing from the price adjustment** (confirmed one-day rises: Atos 2025-04-30 ×10,217, Dolfines ×3,535, Curatis ×2,709, Ming Le Sports ×1,200, SA Commerciale de Brasserie ×586). Before `price_filter_v2`, `equal_weight_v1` Europe had a CAGR of 27.5% with 69% volatility.
+- **Market caps from adjusted prices and unadjusted share counts** (Wheeler REIT 2017-05-31: price 5.2e11 USD, market cap 4.5e18 USD, median turnover 0; Sunshine Biopharma 3.3e17; Jaguar Health 7.7e15). Ratios of turnover to market cap overlap with real thinly traded A shares, so they cannot be separated that way.
+- **Calendar effect:** the engine uses the union of all markets' trading days. A month end that is a holiday in Sweden but not elsewhere is still a trading day, so signals and trades come one day earlier than on a Swedish calendar (Sweden equal weight: 6.39M vs 6.45M final value over 20 years, about 0.05 points a year). Both respect the execution delay.
 
 **`random_pick_v1` Sweden, k = 30, redrawn monthly, 500 seeds:**
 
 | | mean | p5 | p25 | median | p75 | p95 | sd |
 |---|---|---|---|---|---|---|---|
-| CAGR | 6.79% | 2.03% | 4.81% | 6.93% | 8.67% | 11.68% | 2.90% |
-| volatility | 21.8% | 19.9% | 20.8% | 21.5% | 22.5% | 24.4% | 1.4% |
-| max drawdown | −60.6% | −71.9% | −65.5% | −60.1% | −55.6% | −49.7% | 6.7% |
+| CAGR | 6.52% | 1.87% | 4.66% | 6.63% | 8.35% | 11.37% | 2.82% |
+| volatility | 21.4% | 19.9% | 20.7% | 21.4% | 22.0% | 23.2% | 1.0% |
+| max drawdown | −60.6% | −71.9% | −65.5% | −60.2% | −55.6% | −49.7% | 6.7% |
 
-`equal_weight_v1`: CAGR 10.02%, volatility 18.0%, max drawdown −52.1%. The 3.2-point CAGR gap decomposes into costs and volatility: arithmetic annual return 8.70% vs 10.64%, of which 2.24 points are costs (same seeds rerun gross: 0.04 points sd over 20 seeds; full redraw each month is about 200% turnover a month), and volatility drag σ²/2 is 2.15% vs 1.03%. Gross, random portfolios average 10.94% vs 10.77% for equal weight (difference within about 1.3 standard errors), so random selection is unbiased on real data as on synthetic data. Runs are deterministic: the parallel runs reproduce the single-process results exactly.
+`equal_weight_v1` Sweden: CAGR 9.63%, volatility 18.0%, max drawdown −52.1%. The gap to the random mean is costs and volatility (checked with `price_filter_v1`: arithmetic annual return 8.70% vs 10.64%, of which 2.24 points are costs, since a full redraw each month is about 200% turnover a month; volatility drag σ²/2 2.15% vs 1.03%; gross, random portfolios average the same as equal weight within about 1.3 standard errors). Runs are deterministic: parallel runs reproduce single-process results exactly.
 
 ---
 
