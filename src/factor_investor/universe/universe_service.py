@@ -47,6 +47,7 @@ class UniverseService:
         from_date: date | None = None,
         to_date: date | None = None,
         force_rebuild: bool = False,
+        instrument_ids: list[int] | None = None,
     ) -> BuildStats:
         """Build universe for all month-end dates in range.
 
@@ -54,6 +55,8 @@ class UniverseService:
             from_date: Start date (default: 2006-01-01)
             to_date: End date (default: today)
             force_rebuild: If True, delete existing data and rebuild
+            instrument_ids: If given, only these instruments: their rows are
+                deleted and rebuilt per date, other rows are left untouched
 
         Returns:
             Statistics from build operation
@@ -84,8 +87,15 @@ class UniverseService:
                     logger.info(f"  Progress: {idx + 1}/{len(month_ends)} dates processed")
 
                 try:
+                    if instrument_ids is not None:
+                        session.execute(
+                            delete(UniverseConstituent).where(
+                                UniverseConstituent.date == month_end,
+                                UniverseConstituent.instrument_id.in_(instrument_ids),
+                            )
+                        )
                     eligible, excluded, breakdown = self._build_universe_for_date(
-                        session, month_end
+                        session, month_end, instrument_ids
                     )
                     total_eligible += eligible
                     total_excluded += excluded
@@ -115,13 +125,14 @@ class UniverseService:
         return stats
 
     def _build_universe_for_date(
-        self, session: Session, as_of_date: date
+        self, session: Session, as_of_date: date, instrument_ids: list[int] | None = None
     ) -> tuple[int, int, dict[str, int]]:
         """Build universe constituents for a specific date.
 
         Args:
             session: Database session
             as_of_date: Date to build universe for
+            instrument_ids: If given, only these instruments
 
         Returns:
             Tuple of (eligible_count, excluded_count, exclusion_breakdown)
@@ -133,12 +144,13 @@ class UniverseService:
         instruments_query = text("""
             SELECT DISTINCT ON (i.ins_id)
                 i.ins_id, i.stock_price_currency, i.country_id, i.market_id,
-                i.sector_id, i.listing_date, i.name, s.close AS price
+                i.sector_id, i.listing_date, i.name, i.isin, s.close AS price
             FROM stock_prices s
             JOIN instruments i ON i.ins_id = s.ins_id
             WHERE s.date <= :as_of_date
               AND s.date >= :oldest
               AND i.instrument_type = ANY(:types)
+              AND (CAST(:ids AS integer[]) IS NULL OR i.ins_id = ANY(:ids))
             ORDER BY i.ins_id, s.date DESC
         """)
         result = session.execute(
@@ -147,6 +159,7 @@ class UniverseService:
                 "as_of_date": as_of_date,
                 "oldest": as_of_date - timedelta(days=self.config.max_price_age_days),
                 "types": stock_instrument_types(),
+                "ids": instrument_ids,
             },
         )
         instruments = result.fetchall()
@@ -204,7 +217,7 @@ class UniverseService:
             exclusion_reason = None
 
             # Only exclude extreme data quality issues
-            exclusion_reason = self._exclusion_reason(ins.country_id, price, ins.name)
+            exclusion_reason = self._exclusion_reason(ins.country_id, price, ins.name, ins.isin)
             if exclusion_reason:
                 is_eligible = False
 
@@ -262,11 +275,14 @@ class UniverseService:
         return (eligible_count, excluded_count, exclusion_breakdown)
 
     def _exclusion_reason(
-        self, country_id: int, price: Decimal | None, name: str | None
+        self, country_id: int, price: Decimal | None, name: str | None, isin: str | None
     ) -> str | None:
         """Reason an instrument is not eligible, or None if eligible."""
         if country_id in self.config.exclude_country_ids:
             return "excluded_country"
+        domestic_code = self.config.domestic_only.get(country_id)
+        if domestic_code is not None and not (isin or "").startswith(domestic_code):
+            return "foreign_listing"
         if name and name.endswith(tuple(self.config.exclude_name_suffixes)):
             return "d_share"
         min_price = self.config.min_price

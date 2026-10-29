@@ -6,11 +6,16 @@ import polars as pl
 import pytest
 
 from factor_investor.benchmarks.universe import (
+    EUROPE,
     MAX_WEIGHT,
+    NORDICS,
+    US,
+    Region,
     cap_at,
     cap_weights,
     equal_weights,
     random_pick,
+    with_base_currency,
 )
 
 D = date(2024, 1, 31)
@@ -36,7 +41,9 @@ def as_dict(weights: pl.DataFrame) -> dict[int, float]:
 
 
 def test_equal_weights() -> None:
-    weights = as_dict(equal_weights(snapshot([(1, 1, 1, 1), (2, 1, 1, 1), (3, 1, 1, 1), (4, 1, 1, 1)])))
+    weights = as_dict(
+        equal_weights(snapshot([(1, 1, 1, 1), (2, 1, 1, 1), (3, 1, 1, 1), (4, 1, 1, 1)]))
+    )
     assert weights == {1: 0.25, 2: 0.25, 3: 0.25, 4: 0.25}
 
 
@@ -69,7 +76,9 @@ def test_cap_weights_proportional_to_market_cap() -> None:
 
 
 def test_cap_weights_drop_turnover_larger_than_market_cap() -> None:
-    universe = snapshot([(i, 1000.0, 10.0, 5.0) for i in range(1, 12)] + [(99, 1000.0, 10.0, 2000.0)])
+    universe = snapshot(
+        [(i, 1000.0, 10.0, 5.0) for i in range(1, 12)] + [(99, 1000.0, 10.0, 2000.0)]
+    )
     assert 99 not in as_dict(cap_weights(universe, history([])))
 
 
@@ -104,3 +113,35 @@ def test_random_pick_is_seeded_uniform_and_varies_by_date() -> None:
 def test_random_pick_takes_everything_when_universe_is_small() -> None:
     universe = snapshot([(1, 1.0, 1.0, 1.0), (2, 1.0, 1.0, 1.0)])
     assert as_dict(random_pick(universe, 10, seed=1, as_of_date=D)) == {1: 0.5, 2: 0.5}
+
+
+def test_cap_weights_compare_market_caps_in_one_currency() -> None:
+    """Two companies with the same local market cap, one in EUR and one in SEK:
+    the EUR company is worth about 11 times more."""
+    universe = with_base_currency(
+        snapshot([(1, 100.0, 10.0, 1.0), (2, 100.0, 10.0, 1.0)]).with_columns(
+            pl.Series("currency", ["EUR", "SEK"])
+        ),
+        {"USD": 1.0, "EUR": 0.9, "SEK": 9.9},
+        "EUR",
+    )
+    weights = as_dict(cap_weights(universe, history([])))
+    assert weights[1] / weights[2] == pytest.approx(11.0)
+
+
+def test_names_without_an_exchange_rate_are_dropped() -> None:
+    universe = snapshot([(1, 100.0, 10.0, 1.0), (2, 100.0, 10.0, 1.0)]).with_columns(
+        pl.Series("currency", ["EUR", "XYZ"])
+    )
+    converted = with_base_currency(universe, {"EUR": 0.9}, "EUR")
+    assert converted["instrument_id"].to_list() == [1]
+    assert converted["to_base"].to_list() == [1.0]
+
+
+def test_regions() -> None:
+    assert US.code == "US" and US.currency == "USD"
+    assert isinstance(EUROPE, Region) and EUROPE.currency == "EUR"
+    codes = {m.code for m in EUROPE.markets}
+    assert {m.code for m in NORDICS} <= codes
+    assert {"GB", "DE", "FR", "NL", "CH", "ES", "IT", "BE", "PT", "PL"} <= codes
+    assert all(m.country_id != US.country_id for m in EUROPE.markets)

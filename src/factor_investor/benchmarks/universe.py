@@ -12,9 +12,12 @@ strategies, so they get the same T+1 execution and costs:
 
 The investable universe on date T is the eligible universe snapshot for T,
 restricted to one country's domestic companies (listed there, trading in its
-currency, with its ISIN country code; prices are not converted), with one
-listing per company (`dedupe_listings_v1`). Everything is read from
-snapshots dated T or earlier.
+currency, with its ISIN country code), with one listing per company
+(`dedupe_listings_v1`). A region is several such markets in one base
+currency: market caps are converted with the exchange rates of date T, and
+the backtest runs on prices converted to the base currency
+(`load_price_panel(currency=...)`). Everything is read from snapshots and
+quotes dated T or earlier.
 
 Benchmarks are not strategy trials: they are not selected by a search, so
 they are not logged in the trial registry and do not count towards deflated
@@ -32,6 +35,7 @@ from sqlalchemy import text
 from factor_investor.backtest.strategy import Strategy, TargetPortfolio
 from factor_investor.dates import month_end_dates
 from factor_investor.db import get_session
+from factor_investor.universe.fx import usd_rates
 from factor_investor.universe.listings import dedupe_listings_v1
 from factor_investor.universe.queries import get_universe
 
@@ -62,6 +66,38 @@ NORWAY = Market("NO", 2, "NOK")
 FINLAND = Market("FI", 3, "EUR")
 DENMARK = Market("DK", 4, "DKK")
 NORDICS = (SWEDEN, NORWAY, FINLAND, DENMARK)
+US = Market("US", 5, "USD")
+
+
+@dataclass(frozen=True)
+class Region:
+    """Several markets in one base currency."""
+
+    code: str
+    markets: tuple[Market, ...]
+    currency: str
+
+
+# Like Stoxx Europe 600: the Nordics, UK, Switzerland, Poland and the
+# Eurozone countries in Börsdata. UK companies with Jersey or Guernsey ISINs
+# (Glencore, WPP) are not domestic by the ISIN rule.
+EUROPE = Region(
+    "EU",
+    (
+        *NORDICS,
+        Market("GB", 7, "GBP"),
+        Market("DE", 8, "EUR"),
+        Market("FR", 9, "EUR"),
+        Market("ES", 10, "EUR"),
+        Market("PT", 11, "EUR"),
+        Market("IT", 12, "EUR"),
+        Market("CH", 13, "CHF"),
+        Market("BE", 14, "EUR"),
+        Market("NL", 15, "EUR"),
+        Market("PL", 17, "PLN"),
+    ),
+    "EUR",
+)
 
 
 @cache
@@ -82,26 +118,42 @@ def _instrument_markets() -> pl.DataFrame:
     )
 
 
+def with_base_currency(universe: pl.DataFrame, rates: dict[str, float], base: str) -> pl.DataFrame:
+    """Add `to_base` (base currency per unit of the name's currency) from
+    units-per-USD rates; names whose currency has no rate are dropped."""
+    to_base = {c: rates[base] / r for c, r in rates.items()} if base in rates else {}
+    return universe.with_columns(
+        pl.col("currency")
+        .replace_strict(to_base, default=None, return_dtype=pl.Float64)
+        .alias("to_base")
+    ).drop_nulls("to_base")
+
+
 @cache
-def investable_universe(as_of_date: date, market: Market) -> pl.DataFrame:
-    """Eligible domestic names in `market` on as_of_date, one listing per company.
+def investable_universe(as_of_date: date, area: Market | Region) -> pl.DataFrame:
+    """Eligible domestic names in `area` on as_of_date, one listing per company,
+    with `to_base` for converting market caps to the area's currency.
 
     Cached per process: random-pick runs with different seeds share it.
     """
     eligible = get_universe(as_of_date, is_eligible=True)
     if eligible.is_empty():
         return eligible
-    in_market = eligible.with_columns(pl.col("instrument_id").cast(pl.Int32)).join(
-        _instrument_markets()
-        .filter(
+    markets = area.markets if isinstance(area, Region) else (area,)
+    domestic = pl.lit(False)
+    for market in markets:
+        domestic = domestic | (
             (pl.col("country_id") == market.country_id)
             & (pl.col("currency") == market.currency)
             & (pl.col("isin_country") == market.code)
         )
-        .drop("isin_country"),
-        on="instrument_id",
+    in_area = eligible.with_columns(pl.col("instrument_id").cast(pl.Int32)).join(
+        _instrument_markets().filter(domestic).drop("isin_country"), on="instrument_id"
     )
-    return dedupe_listings_v1(in_market, as_of_date).sort("instrument_id")
+    universe = dedupe_listings_v1(in_area, as_of_date).sort("instrument_id")
+    if isinstance(area, Market):
+        return universe.with_columns(pl.lit(1.0).alias("to_base"))
+    return with_base_currency(universe, usd_rates(as_of_date), area.currency)
 
 
 def trailing_median_shares(as_of_date: date, instrument_ids: list[int]) -> pl.DataFrame:
@@ -186,10 +238,9 @@ def cap_weights(universe: pl.DataFrame, median_shares: pl.DataFrame) -> pl.DataF
             )
         )
     )
-    weights = rows.select(
-        "instrument_id",
-        (pl.col("market_cap_local") / pl.col("market_cap_local").sum()).cast(pl.Float64).alias("weight"),
-    )
+    # Market caps in one currency (to_base is 1 within a single market)
+    cap = pl.col("market_cap_local") * (pl.col("to_base") if "to_base" in rows.columns else 1.0)
+    weights = rows.select("instrument_id", (cap / cap.sum()).cast(pl.Float64).alias("weight"))
     return cap_at(weights, MAX_WEIGHT)
 
 
@@ -201,7 +252,9 @@ def random_pick(universe: pl.DataFrame, k: int, seed: int, as_of_date: date) -> 
 
 
 class MarketBenchmark(Strategy):
-    """Monthly-rebalanced benchmark over one market's investable universe.
+    """Monthly-rebalanced benchmark over one market's or region's investable
+    universe. A region must run on prices in its currency
+    (`load_price_panel(currency=region.currency)`).
 
     weighting: "equal" (equal_weight_v1), "cap" (cap_weight_v1) or
     "random" (random_pick_v1, needs k and seed).
@@ -209,7 +262,7 @@ class MarketBenchmark(Strategy):
 
     def __init__(
         self,
-        market: Market,
+        market: Market | Region,
         weighting: str,
         k: int | None = None,
         seed: int | None = None,
@@ -247,7 +300,9 @@ class MarketBenchmark(Strategy):
         return month_end_dates(from_date, to_date)
 
     def generate_signals(
-        self, as_of_date: date, current_holdings: pl.DataFrame | None = None  # noqa: ARG002
+        self,
+        as_of_date: date,
+        current_holdings: pl.DataFrame | None = None,  # noqa: ARG002
     ) -> TargetPortfolio:
         universe = investable_universe(as_of_date, self.market)
         if universe.is_empty():

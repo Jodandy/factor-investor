@@ -347,6 +347,9 @@ def build_universe(
     ),
     to_date: str = typer.Option(None, "--to-date", help="End date (YYYY-MM-DD, default: today)"),
     force_rebuild: bool = typer.Option(False, "--force", help="Clear existing data and rebuild"),
+    instruments_file: str = typer.Option(
+        None, "--instruments-file", help="Rebuild only these instruments (one id per line)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ) -> None:
     """Build investable universe (monthly month-end snapshots)."""
@@ -369,7 +372,10 @@ def build_universe(
 
     service = UniverseService()
     stats = service.build_universe_monthly(
-        from_date=start_date, to_date=end_date, force_rebuild=force_rebuild
+        from_date=start_date,
+        to_date=end_date,
+        force_rebuild=force_rebuild,
+        instrument_ids=_read_instrument_ids(instruments_file),
     )
 
     # Display results
@@ -407,7 +413,9 @@ def build_base_metrics(
     to_date: str = typer.Option(None, "--to-date", help="End date (YYYY-MM-DD, default: today)"),
     force_rebuild: bool = typer.Option(False, "--force", help="Clear existing data and rebuild"),
     metrics: str = typer.Option(
-        None, "--metrics", help="Comma-separated list of metrics to build (e.g., 'ev_ebitda,operating_cash_flow'). If not specified, builds all metrics."
+        None,
+        "--metrics",
+        help="Comma-separated list of metrics to build (e.g., 'ev_ebitda,operating_cash_flow'). If not specified, builds all metrics.",
     ),
     instruments_file: str = typer.Option(
         None,
@@ -553,6 +561,41 @@ def backtest(
 
 
 # --- Research commands ---
+benchmarks_app = typer.Typer(help="Index-like benchmarks and random portfolios")
+app.add_typer(benchmarks_app, name="benchmarks")
+
+
+@benchmarks_app.command("run")
+def benchmarks_run(
+    areas: list[str] = typer.Option(..., "--area", help="SE, NO, FI, DK, US or EU (repeatable)"),
+    weightings: list[str] = typer.Option(
+        ["equal", "cap"], "--weighting", help="equal, cap (repeatable)"
+    ),
+    random_runs: int = typer.Option(0, "--random", help="Number of random_pick_v1 seeds (1..N)"),
+    k: int = typer.Option(30, "--k", help="Names per random portfolio"),
+    from_date: str = typer.Option("2006-10-01", "--from-date"),
+    to_date: str = typer.Option(None, "--to-date", help="Default: today"),
+    workers: int = typer.Option(1, "--workers", help="Processes (about 5 GB each)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
+) -> None:
+    """Run benchmarks and save daily returns to data/benchmarks/."""
+    setup_logging(verbose)
+    from datetime import date as date_type
+
+    from factor_investor.benchmarks.run import AREAS, BenchmarkRun, run_many
+
+    unknown = [a for a in areas if a not in AREAS]
+    if unknown:
+        raise typer.BadParameter(f"Unknown area(s) {unknown}; choose from {sorted(AREAS)}")
+    runs = [BenchmarkRun(a, w) for a in areas for w in weightings]
+    runs += [
+        BenchmarkRun(a, "random", k, seed) for a in areas for seed in range(1, random_runs + 1)
+    ]
+    end = date_type.fromisoformat(to_date) if to_date else date_type.today()
+    paths = run_many(runs, date_type.fromisoformat(from_date), end, workers=workers)
+    console.print(f"[green]{len(paths)} benchmark runs written to data/benchmarks/[/green]")
+
+
 research_app = typer.Typer(help="Research and analysis tools")
 app.add_typer(research_app, name="research")
 

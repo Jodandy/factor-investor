@@ -30,6 +30,11 @@ class UniverseConfig(BaseModel):
     # secondary listings of foreign companies; see DECISIONS 2026-10-28)
     exclude_country_ids: list[int] = Field(default_factory=list)
 
+    # Countries where only domestic companies are eligible: country id -> ISIN
+    # country code. Other listings there get exclusion reason "foreign_listing"
+    # (Germany: mostly secondary listings; SAP, Siemens etc. stay eligible).
+    domestic_only: dict[int, str] = Field(default_factory=dict)
+
     # Liquidity bucket thresholds (for classification, not exclusion)
     liquidity_bucket_thresholds: list[float] = Field(
         default_factory=lambda: [10_000_000.0, 1_000_000.0, 100_000.0, 10_000.0]

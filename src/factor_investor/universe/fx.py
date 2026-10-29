@@ -42,3 +42,18 @@ def usd_rates(as_of_date: date, max_age_days: int = 7) -> dict[str, float]:
     rates = {name.removeprefix("USD/"): float(close) for name, close in rows}
     rates["USD"] = 1.0
     return rates
+
+
+def usd_rate_history() -> list[tuple[str, date, float]]:
+    """Every daily quote of the USD/XXX pairs: (currency, date, units per USD)."""
+    query = text("""
+        SELECT substr(i.name, 5), s.date, s.close
+        FROM stock_prices s
+        JOIN instruments i ON i.ins_id = s.ins_id
+        WHERE i.instrument_type = :fx_type
+          AND i.name LIKE 'USD/%'
+          AND s.close > 0
+    """)
+    with get_session() as session:
+        rows = session.execute(query, {"fx_type": FX_INSTRUMENT_TYPE}).all()
+    return [(currency, day, float(close)) for currency, day, close in rows]

@@ -64,9 +64,8 @@ exclude_name_suffixes = [" D"]
 # calendar days old (covers weekends and holidays such as Nordic Dec 31)
 max_price_age_days = 7
 
-# Excluded countries (country ids). 8 = Germany: mostly secondary listings of
-# foreign companies (4,326 of 6,094 report in non-EUR currencies)
-exclude_country_ids = [8]
+# Excluded countries (country ids)
+exclude_country_ids = []
 
 # Liquidity buckets (for transaction cost modeling - informational, not exclusionary)
 # These thresholds are used to classify instruments, not exclude them
@@ -77,6 +76,12 @@ liquidity_bucket_thresholds = [
     10_000.0,      # >= 10k = bucket 4
     # < 10k = bucket 5 (least liquid)
 ]
+
+# Countries where only domestic companies are eligible: country id -> ISIN
+# country code. 8 = Germany: mostly secondary listings of foreign companies
+# (4,326 of 6,094 report in non-EUR currencies); German companies stay in.
+[universe.domestic_only]
+8 = "DE"
 
 [corporate_events]
 # Recovery rate assumptions for detected delistings

@@ -16,7 +16,7 @@ so one-day data errors are never traded or used to value a position.
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
 
@@ -116,6 +116,52 @@ def confirm_extreme_moves(
         max_wait_days,
     )
     return prices.filter(pl.Series(keep))
+
+
+FX_MAX_AGE_DAYS = 7
+
+
+def convert_currency(
+    prices: pl.DataFrame,
+    currencies: pl.DataFrame,
+    usd_rates: pl.DataFrame,
+    base: str,
+    max_age_days: int = FX_MAX_AGE_DAYS,
+) -> pl.DataFrame:
+    """Prices in each instrument's own currency converted to `base`.
+
+    Args:
+        prices: [instrument_id, date, price, ...]; other columns are kept
+        currencies: [instrument_id, currency]
+        usd_rates: [currency, date, per_usd], units of currency per USD
+            (USD itself needs no rows)
+        base: Target currency
+
+    Each price uses the last rates quoted on or before its date, at most
+    max_age_days old, so no later quote is used. Prices without such a rate
+    (or with an unknown currency) are dropped. A total return index converted
+    this way is the total return in `base`.
+    """
+    tolerance = timedelta(days=max_age_days)
+    rates = usd_rates.select("currency", "date", "per_usd").sort("date")
+    base_rates = rates.filter(pl.col("currency") == base).select(
+        "date", pl.col("per_usd").alias("base_per_usd")
+    )
+    is_usd = pl.col("currency") == "USD"
+    return (
+        prices.join(currencies, on="instrument_id")
+        .sort("date")
+        .join_asof(rates, on="date", by="currency", strategy="backward", tolerance=tolerance)
+        .join_asof(base_rates, on="date", strategy="backward", tolerance=tolerance)
+        .with_columns(
+            pl.when(is_usd).then(1.0).otherwise(pl.col("per_usd")).alias("per_usd"),
+            (pl.lit(1.0) if base == "USD" else pl.col("base_per_usd")).alias("base_per_usd"),
+        )
+        .drop_nulls(["per_usd", "base_per_usd"])
+        # factor first, so a price already in `base` is multiplied by exactly 1.0
+        .with_columns(pl.col("price") * (pl.col("base_per_usd") / pl.col("per_usd")))
+        .select(prices.columns)
+    )
 
 
 def _source_fingerprint() -> dict[str, str]:
@@ -222,9 +268,32 @@ class PricePanel:
         return self._by_day.get(as_of_date, pl.DataFrame(schema=PRICE_SCHEMA))
 
 
+def _currency_frames() -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Each instrument's price currency, and the USD rate history."""
+    from factor_investor.universe.fx import usd_rate_history
+
+    with get_session() as session:
+        currencies = session.execute(
+            text("SELECT ins_id, stock_price_currency FROM instruments")
+        ).all()
+    return (
+        pl.DataFrame(
+            currencies, schema={"instrument_id": pl.Int32, "currency": pl.Utf8}, orient="row"
+        ),
+        pl.DataFrame(
+            usd_rate_history(),
+            schema={"currency": pl.Utf8, "date": pl.Date, "per_usd": pl.Float64},
+            orient="row",
+        ),
+    )
+
+
 @cache
-def load_price_panel(path: Path = PANEL_PATH) -> PricePanel:
+def load_price_panel(path: Path = PANEL_PATH, currency: str | None = None) -> PricePanel:
     """Load the panel, rebuilding the Parquet file if the database has changed.
+
+    Prices are in each instrument's own currency, or converted to `currency`
+    (`convert_currency`) for portfolios that span currencies.
 
     Cached per process: the check runs once, then every backtest in the
     process shares the same panel.
@@ -232,4 +301,7 @@ def load_price_panel(path: Path = PANEL_PATH) -> PricePanel:
     if not _is_current(path):
         build_price_panel(path)
     logger.info(f"Loading price panel from {path}")
-    return PricePanel.from_frame(pl.read_parquet(path))
+    frame = pl.read_parquet(path)
+    if currency is not None:
+        frame = convert_currency(frame, *_currency_frames(), base=currency)
+    return PricePanel.from_frame(frame)
