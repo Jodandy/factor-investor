@@ -43,6 +43,9 @@ def ingest_sync(
     instruments: bool = typer.Option(False, "--instruments", help="Sync instruments only"),
     reports: bool = typer.Option(False, "--reports", help="Sync reports only"),
     prices: bool = typer.Option(False, "--prices", help="Sync prices only"),
+    dividends: bool = typer.Option(
+        False, "--dividends", help="Sync the dividend calendar (ex-dates) for stocks"
+    ),
     nordic_only: bool = typer.Option(False, "--nordic-only", help="Nordic instruments only"),
     limit: int = typer.Option(0, "--limit", help="Limit number of instruments (0=all)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
@@ -63,7 +66,7 @@ def ingest_sync(
         return
 
     # Individual syncs
-    if metadata or not any([instruments, reports, prices]):
+    if metadata or not any([instruments, reports, prices, dividends]):
         console.print("Syncing metadata...")
         counts = sync.sync_metadata()
         console.print(f"[green]Metadata:[/green] {counts}")
@@ -114,6 +117,11 @@ def ingest_sync(
         console.print(f"Syncing prices for {len(instrument_ids)} instruments...")
         count = sync.sync_prices(instrument_ids=instrument_ids)
         console.print(f"[green]Prices:[/green] {count} records")
+
+    if dividends:
+        console.print("Syncing dividend calendar...")
+        count = sync.sync_dividend_calendar()
+        console.print(f"[green]Dividend calendar:[/green] {count} rows")
 
 
 @ingest_app.command("sync-all")

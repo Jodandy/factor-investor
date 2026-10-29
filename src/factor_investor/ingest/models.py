@@ -172,6 +172,31 @@ class StockSplit(Base):
     )
 
 
+class DividendCalendarEntry(Base):
+    """Dividend calendar rows: actual ex-dates (from 2010) and announced future ones.
+
+    Amounts are as paid, not adjusted for later splits (DATA_AUDIT "Dividends").
+    """
+
+    __tablename__ = "dividend_calendar"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ins_id: Mapped[int] = mapped_column(Integer, ForeignKey("instruments.ins_id"), nullable=False)
+    ex_date: Mapped[date] = mapped_column(Date, nullable=False)
+    dividend_type: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_paid: Mapped[Decimal | None] = mapped_column(Numeric(24, 6))
+    currency: Mapped[str | None] = mapped_column(String(10))
+    distribution_frequency: Mapped[int | None] = mapped_column(Integer)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default="NOW()")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "ins_id", "ex_date", "dividend_type", name="uq_dividend_calendar_ins_date_type"
+        ),
+        Index("ix_dividend_calendar_ex_date", "ex_date"),
+    )
+
+
 # --- Report tables ---
 # Using separate tables for year/quarter/r12 for clarity and performance
 

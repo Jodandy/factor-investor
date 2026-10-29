@@ -6,7 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from factor_investor.ingest.client import BorsdataClient, create_client_from_env
 from factor_investor.ingest.models import (
     Branch,
     Country,
+    DividendCalendarEntry,
     Instrument,
     InstrumentSyncStatus,
     Market,
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
 # caps history at 20 years, so this requests everything available.
 PRICE_HISTORY_MAX_COUNT = 20 * 365
 
+# The dividend calendar endpoint takes at most 50 instruments per request.
+DIVIDEND_CALENDAR_BATCH = 50
+
 
 def _price_instrument_types() -> list[int]:
     """Instrument types synced for prices: stocks plus indices and FX."""
@@ -52,6 +56,36 @@ def parse_date(date_str: str | None) -> date | None:
     except ValueError:
         logger.warning(f"Could not parse date: {date_str}")
         return None
+
+
+def parse_dividend_calendar(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Rows for dividend_calendar from a /v1/instruments/dividend/calendar response.
+
+    Rows with the same instrument, ex-date and type are summed (one row per
+    unique key); rows without an ex-date are skipped.
+    """
+    rows: dict[tuple[int, date, int], dict[str, Any]] = {}
+    for item in data.get("list") or []:
+        for value in item.get("values") or []:
+            ex_date = parse_date(value.get("excludingDate"))
+            if ex_date is None:
+                continue
+            key = (item["insId"], ex_date, int(value.get("dividendType") or 0))
+            amount = value.get("amountPaid")
+            if key in rows:
+                previous = rows[key]["amount_paid"]
+                if amount is not None:
+                    rows[key]["amount_paid"] = (previous or 0) + amount
+                continue
+            rows[key] = {
+                "ins_id": key[0],
+                "ex_date": key[1],
+                "dividend_type": key[2],
+                "amount_paid": amount,
+                "currency": value.get("currencyShortName"),
+                "distribution_frequency": value.get("distributionFrequency"),
+            }
+    return list(rows.values())
 
 
 def save_raw_json(data: dict[str, Any], name: str, raw_dir: Path) -> None:
@@ -870,6 +904,51 @@ class SyncService:
             except Exception as e:
                 self._complete_sync(session, sync_log, 0, str(e))
                 raise
+
+    def sync_dividend_calendar(self, instrument_ids: list[int] | None = None) -> int:
+        """Sync the dividend calendar (real ex-dates) for stock instruments.
+
+        Each call returns an instrument's full calendar, so the stored rows of
+        the requested instruments are replaced batch by batch.
+        """
+        if instrument_ids is None:
+            with get_session() as session:
+                instrument_ids = list(
+                    session.scalars(
+                        select(Instrument.ins_id)
+                        .where(Instrument.instrument_type.in_(stock_instrument_types()))
+                        .order_by(Instrument.ins_id)
+                    )
+                )
+
+        with get_session() as session:
+            sync_log = self._start_sync(session, "dividend_calendar")
+        total = 0
+        try:
+            for start in range(0, len(instrument_ids), DIVIDEND_CALENDAR_BATCH):
+                batch = instrument_ids[start : start + DIVIDEND_CALENDAR_BATCH]
+                data = self.client.get_dividend_calendar(batch)
+                rows = parse_dividend_calendar(data)
+                with get_session() as session:
+                    session.execute(
+                        delete(DividendCalendarEntry).where(DividendCalendarEntry.ins_id.in_(batch))
+                    )
+                    if rows:
+                        session.execute(insert(DividendCalendarEntry).values(rows))
+                total += len(rows)
+                if (start // DIVIDEND_CALENDAR_BATCH) % 20 == 0:
+                    logger.info(
+                        f"Dividend calendar: {start + len(batch)}/{len(instrument_ids)} instruments, "
+                        f"{total} rows"
+                    )
+        except Exception as e:
+            with get_session() as session:
+                self._complete_sync(session, session.merge(sync_log), total, str(e))
+            raise
+        with get_session() as session:
+            self._complete_sync(session, session.merge(sync_log), total)
+        logger.info(f"Synced {total} dividend calendar rows for {len(instrument_ids)} instruments")
+        return total
 
     def full_sync(self, include_global: bool = True) -> dict[str, Any]:
         """Run a full sync of all data."""
