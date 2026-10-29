@@ -235,6 +235,21 @@ Klarar testet: konkurserna sänker båda portföljernas avkastning med 2–4 pro
 
 **Falsifieras om**: medianen över parameterrummet inte slår kontrollen, eller om resultatet bara håller i enstaka tidsblock.
 
+**Resultat 2026-10-29** (trials 534–545; kontrollen 14,1–15,7 %/år, perioden börjar efter kraschen 2008):
+
+| Rebalansering | Börsvärde | Antal | CAGR | Överavkastning mot kontroll | Block slagna |
+|---|---|---|---|---|---|
+| årlig | ≥ 500 MSEK | 20 | 19,2 % | +4,7 % | 62 % |
+| årlig | ≥ 500 MSEK | 30 | 18,4 % | +4,0 % | 62 % |
+| årlig | ≥ 2 MDSEK | 20 | 19,9 % | +4,2 % | 62 % |
+| årlig | ≥ 2 MDSEK | 30 | 18,3 % | +2,5 % | 62 % |
+| kvartal | ≥ 500 MSEK | 20 | 19,3 % | +5,2 % | 100 % |
+| kvartal | ≥ 500 MSEK | 30 | 18,2 % | +4,0 % | 75 % |
+| kvartal | ≥ 2 MDSEK | 20 | 18,6 % | +3,5 % | 88 % |
+| kvartal | ≥ 2 MDSEK | 30 | 17,7 % | +2,6 % | 62 % |
+
+Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (svag 2013–2020); kvartalsvis jämnare. CSCV: PBO 87 % (parametervalet är brus), bästa in-sample förlorar mot kontrollen out-of-sample i 13 %; deflaterad Sharpe 97 % med H6:s 8 försök. **Status:** inte falsifierad. Reservation: formeln är nära släkt med H2 och H5 (värdering + kvalitet), så räknat över hela familjen av liknande försök är beviset svagare än 8 försök antyder.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
