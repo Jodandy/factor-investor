@@ -4,69 +4,18 @@ Runs the engine on synthetic in-memory prices (no database needed) to verify
 execution delay and portfolio accounting.
 """
 
-from datetime import date, timedelta
-
 import polars as pl
 import pytest
 
 from factor_investor.backtest.engine import STALE_PRICE_DAYS, BacktestEngine
-from factor_investor.backtest.prices import PricePanel
-from factor_investor.backtest.strategy import Strategy, TargetPortfolio
-
-START = date(2015, 1, 5)
-
-
-def trading_days(n: int) -> list[date]:
-    return [START + timedelta(days=i) for i in range(n)]
-
-
-def InMemoryEngine(
-    prices: dict[date, dict[int, float]], **kwargs: int
-) -> BacktestEngine:
-    """Engine on a synthetic price panel instead of the database."""
-    rows = [(i, d, p) for d, day in prices.items() for i, p in day.items()]
-    frame = pl.DataFrame(rows, schema=["instrument_id", "date", "price"], orient="row")
-    return BacktestEngine(prices=PricePanel.from_frame(frame), **kwargs)
-
-
-class ScheduledStrategy(Strategy):
-    """Holds a fixed target per rebalancing date."""
-
-    def __init__(self, schedule: dict[date, dict[int, float]], cost_bps: int = 10) -> None:
-        self.schedule = schedule
-        self.cost_bps = cost_bps
-        self.signal_dates: list[date] = []
-
-    @property
-    def name(self) -> str:
-        return "scheduled"
-
-    @property
-    def transaction_cost_bps(self) -> int:
-        return self.cost_bps
-
-    @property
-    def max_position_weight(self) -> float:
-        return 1.0
-
-    def get_rebalancing_dates(self, from_date: date, to_date: date) -> list[date]:
-        return sorted(d for d in self.schedule if from_date <= d <= to_date)
-
-    def generate_signals(
-        self, as_of_date: date, current_holdings: pl.DataFrame | None = None  # noqa: ARG002
-    ) -> TargetPortfolio:
-        self.signal_dates.append(as_of_date)
-        weights = self.schedule[as_of_date]
-        return TargetPortfolio(
-            holdings=pl.DataFrame(
-                {"instrument_id": list(weights.keys()), "weight": list(weights.values())},
-                schema={"instrument_id": pl.Int32, "weight": pl.Float64},
-            )
-        )
-
-
-def run(engine: BacktestEngine, strategy: Strategy, days: list[date]):
-    return engine.run(strategy, days[0], days[-1], initial_capital=1_000_000)
+from tests.integrity.synthetic import (
+    InMemoryEngine,
+    ScheduledStrategy,
+    equal_weight,
+    random_walk_prices,
+    run,
+    trading_days,
+)
 
 
 @pytest.mark.integrity
@@ -186,3 +135,53 @@ class TestAccounting:
         last_day = result.holdings_history.filter(pl.col("date") == days[-1])
         assert last_day["instrument_id"].to_list() == [1]
         assert result.metadata["final_value"] == pytest.approx(1_000_000)
+
+
+def oracle_schedule(prices, days, every: int, top: int) -> dict:
+    """Cheats: on each signal day, picks the names with the best return from the
+    execution day (T+1) to the next execution day. Only possible with future prices."""
+    schedule = {}
+    for j in range(0, len(days) - 1, every):
+        buy, sell = days[j + 1], days[min(j + 1 + every, len(days) - 1)]
+        ranked = sorted(prices[buy], key=lambda i: prices[sell][i] / prices[buy][i], reverse=True)
+        schedule[days[j]] = equal_weight(ranked[:top])
+    return schedule
+
+
+@pytest.mark.integrity
+class TestSanity:
+    def test_oracle_gets_absurd_returns(self) -> None:
+        """An engine that cannot profit from perfect foresight is broken (WORK_ORDER fas 6)."""
+        days = trading_days(241)
+        prices = random_walk_prices(40, len(days), seed=1)
+        oracle = oracle_schedule(prices, days, every=10, top=5)
+        all_names = {d: equal_weight(list(range(40))) for d in oracle}
+
+        cheat = run(InMemoryEngine(prices), ScheduledStrategy(oracle), days)
+        market = run(InMemoryEngine(prices), ScheduledStrategy(all_names), days)
+
+        # About 10x here; the same picks one period late give an ordinary result
+        assert cheat.metadata["final_value"] > 3 * market.metadata["final_value"]
+
+    def test_no_trades_keeps_exact_cash(self) -> None:
+        """Empty targets: no trades, every daily return exactly zero (cash earns nothing)."""
+        days = trading_days(30)
+        prices = random_walk_prices(5, len(days), seed=2)
+        strategy = ScheduledStrategy({days[0]: {}, days[10]: {}, days[20]: {}})
+
+        result = run(InMemoryEngine(prices), strategy, days)
+
+        assert result.trades.is_empty()
+        assert (result.returns_df["portfolio_return"] == 0).all()
+        assert result.metadata["final_value"] == 1_000_000
+
+    def test_buy_and_hold_value_with_costs_is_exact(self) -> None:
+        """Buy at T+1 for all cash including 10 bps, hold: value = cash / (1 + cost) * gain."""
+        days = trading_days(10)
+        prices = {d: {1: 100.0 if t < 5 else 150.0} for t, d in enumerate(days)}
+        strategy = ScheduledStrategy({days[0]: {1: 1.0}}, cost_bps=10)
+
+        result = run(InMemoryEngine(prices), strategy, days)
+
+        assert result.metadata["final_value"] == pytest.approx(1_000_000 / 1.001 * 1.5, rel=1e-12)
+        assert result.trades["cost"].sum() == pytest.approx(1_000_000 / 1.001 * 0.001, rel=1e-12)
