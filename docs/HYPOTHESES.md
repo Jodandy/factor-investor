@@ -98,6 +98,8 @@ Parameterrum (24): viktuppsättning {lika (alla 1), kvalitetstung (lönsamhet oc
 
 Alla viktuppsättningar slår kontrollen i alla marknader (median per uppsättning +1,8 till +6,3 %/år). Parameterval är fortfarande brus (PBO 50–71 %), men familjen som helhet håller. Mönstret från Sverige upprepas, alltså bekräftat enligt förregistreringen. Reservationer: marknaderna är inte oberoende (Europa innehåller de nordiska bolagen, samma globala faktorregimer), Börsdata saknar avnoterade bolag i alla marknader, och engångsintäkter i v1.
 
+**USA, förregistrerat 2026-10-29**: `h2_composite_us_v1` mot `h0_liquid_equal_weight_us_v1`, samma regler och parameterrum (24), omsättningsgolv 100 kUSD/dag. Varning: Börsdata har bara bolag som är noterade i dag (1 625 amerikanska bolag i universumet 2008 mot omkring 5 000 noterade då), så alla absoluta avkastningar är kraftigt överskattade. Jämförelsen mot kontrollen är delvis skyddad (båda väljer bland samma överlevare), men den visar inte om H2 hade valt bolag som senare försvann.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
