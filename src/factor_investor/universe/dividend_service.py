@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from factor_investor.db import get_session
 from factor_investor.ingest.models import StockPrice
 from factor_investor.pit.service import PITService
+from factor_investor.settings import dividend_fallback_lag_days
 from factor_investor.universe.models import Dividend, TotalReturn
 
 logger = logging.getLogger(__name__)
@@ -191,25 +192,33 @@ class DividendService:
 
     def __init__(self) -> None:
         """Initialize dividend service."""
-        self.estimation_lag_days = 30  # known_from + 30 days for estimated ex-date
+        self.default_lag_days, self.lag_days_by_country = dividend_fallback_lag_days()
         self.pit_service = PITService()
 
-    def estimate_ex_date(self, report_date: date | None, period_end: date) -> date:
-        """Estimate ex-date as the report's known_from + 30 days.
+    def lag_days(self, country_id: int | None) -> int:
+        """Days from known_from to an estimated ex-date in this country."""
+        if country_id is None:
+            return self.default_lag_days
+        return self.lag_days_by_country.get(country_id, self.default_lag_days)
+
+    def estimate_ex_date(
+        self, report_date: date | None, period_end: date, country_id: int | None
+    ) -> date:
+        """Estimate ex-date as the report's known_from + the country's lag.
 
         Uses the PIT layer's known_from, so placeholder or missing publication
         dates fall back to the same conservative delay: a dividend is never
         paid before the report announcing it could have been known.
         """
         known_from, _ = self.pit_service.calculate_known_from(report_date, period_end, "year")
-        return known_from + timedelta(days=self.estimation_lag_days)
+        return known_from + timedelta(days=self.lag_days(country_id))
 
     def extract_dividends_from_reports(self) -> int:
         """Extract dividends from annual reports and place them on ex-dates.
 
         Ex-dates come from the dividend calendar where it has entries after
         the report's publication (source 'report_calendar'); otherwise they
-        are estimated as known_from + estimation_lag_days ('report_estimated').
+        are estimated as known_from + the country's lag ('report_estimated').
         Amounts always come from the reports (see assign_ex_dates).
 
         Replaces all previously extracted dividends so the extraction is
@@ -239,7 +248,8 @@ class DividendService:
                     r.report_end_date,
                     r.report_date,
                     r.dividend,
-                    i.stock_price_currency as currency
+                    i.stock_price_currency as currency,
+                    i.country_id
                 FROM reports_year r
                 JOIN instruments i ON r.ins_id = i.ins_id
                 WHERE r.dividend IS NOT NULL AND r.dividend > 0
@@ -251,17 +261,19 @@ class DividendService:
 
             reports: dict[int, list[ReportDividend]] = {}
             currencies: dict[int, str | None] = {}
-            for ins_id, period_end, report_date, div_amount, currency in rows:
+            countries: dict[int, int | None] = {}
+            for ins_id, period_end, report_date, div_amount, currency, country_id in rows:
                 known_from, _ = self.pit_service.calculate_known_from(report_date, period_end, "year")
                 reports.setdefault(ins_id, []).append(
                     ReportDividend(known_from, Decimal(str(div_amount)))
                 )
                 currencies[ins_id] = currency
+                countries[ins_id] = country_id
 
             dividends = []
             for ins_id, instrument_reports in reports.items():
                 for ex_date, amount, estimated in assign_ex_dates(
-                    instrument_reports, calendar.get(ins_id, []), self.estimation_lag_days
+                    instrument_reports, calendar.get(ins_id, []), self.lag_days(countries[ins_id])
                 ):
                     dividends.append(
                         {

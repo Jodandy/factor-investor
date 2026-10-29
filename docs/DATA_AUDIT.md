@@ -105,7 +105,8 @@ Tested by searching for well-known Swedish companies that were acquired/delisted
 ### Dividends
 - **Endpoint:** `/v1/instruments/dividend/calendar`
 - **Fields (checked 2026-10-29):** `insId`, `values[]` with `amountPaid`, `currencyShortName`, `excludingDate` (ex-date), `dividendType` (0 ordinary; 1 and 4 seen for extra and instalment payments, meaning not verified), `distributionFrequency` (null so far)
-- **Coverage:** from 2010 (Volvo B and Investor B: 25–26 rows, 2010-04-15 onwards); includes announced future ex-dates (Investor B 2026-11-06)
+- **Coverage (full sync 2026-10-29):** 168,601 rows for 8,381 of 17,059 stock instruments; Nordic countries from 2010, all others from 2015 (Sweden 925 of 947 stocks, USA 2,148 of 5,214, Germany 2,701 of 6,085). Includes announced future ex-dates (up to 2027-11-25). Types: 0 = 163,327 rows, 3 = 2,147, 4 = 1,927, 1 = 856, 2 = 311, 5 = 27, 6 = 6.
+- **Lag from report publication (PIT known_from) to the first ex-date** (median days): Canada 22, USA 32, Denmark 38, Finland 50, England 57, Switzerland 60, Norway 71, Netherlands 75, Sweden 77, Germany/Belgium/Italy 97, Spain 104, France 111, Poland 139; all 63.
 - **Amounts are not split-adjusted:** Investor B 2010-04-15 is 4.00 SEK, but the split-adjusted price fell 0.93 SEK that day (4:1 split in 2022). Report dividends are adjusted (1.00 for 2009), consistent with prices.
 
 ### Indices Available

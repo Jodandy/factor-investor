@@ -29,3 +29,11 @@ def stock_instrument_types() -> list[int]:
 def price_only_instrument_types() -> list[int]:
     """Instrument types synced for prices only (benchmarks, FX), never eligible."""
     return list(_load()["instruments"]["price_only_types"])
+
+
+def dividend_fallback_lag_days() -> tuple[int, dict[int, int]]:
+    """(default, per country id) days from report known_from to an estimated
+    ex-date, for dividends without a dividend calendar entry."""
+    section = _load()["dividends"]
+    by_country = {int(k): int(v) for k, v in section["fallback_lag_days_by_country"].items()}
+    return int(section["fallback_lag_days"]), by_country

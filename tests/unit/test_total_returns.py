@@ -91,22 +91,33 @@ def test_dividend_after_last_price_is_ignored() -> None:
 
 
 class TestExDateEstimate:
+    """Fallback for dividends without a calendar ex-date: known_from plus the
+    country's median lag (settings.toml [dividends])."""
+
+    SWEDEN = 1
+
     def test_based_on_publication_date(self) -> None:
         ex_date = DividendService().estimate_ex_date(
-            report_date=date(2024, 2, 5), period_end=date(2023, 12, 31)
+            report_date=date(2024, 2, 5), period_end=date(2023, 12, 31), country_id=self.SWEDEN
         )
-        assert ex_date == date(2024, 3, 7)  # known_from (2024-02-06) + 30
+        assert ex_date == date(2024, 4, 23)  # known_from (2024-02-06) + 77
+
+    def test_country_without_own_lag_uses_default(self) -> None:
+        ex_date = DividendService().estimate_ex_date(
+            report_date=date(2024, 2, 5), period_end=date(2023, 12, 31), country_id=999
+        )
+        assert ex_date == date(2024, 4, 9)  # known_from (2024-02-06) + 63
 
     def test_implausible_publication_date_uses_pit_fallback(self) -> None:
         """Same placeholder handling as the PIT layer: no dividend before the
         report announcing it could have been known."""
         ex_date = DividendService().estimate_ex_date(
-            report_date=date(2023, 12, 31), period_end=date(2023, 12, 31)
+            report_date=date(2023, 12, 31), period_end=date(2023, 12, 31), country_id=self.SWEDEN
         )
-        assert ex_date == date(2024, 4, 30)  # period_end + 91 + 30
+        assert ex_date == date(2024, 6, 16)  # period_end + 91 + 77
 
     def test_missing_publication_date_uses_pit_fallback(self) -> None:
         ex_date = DividendService().estimate_ex_date(
-            report_date=None, period_end=date(2023, 12, 31)
+            report_date=None, period_end=date(2023, 12, 31), country_id=self.SWEDEN
         )
-        assert ex_date == date(2024, 4, 30)
+        assert ex_date == date(2024, 6, 16)

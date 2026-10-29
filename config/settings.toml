@@ -25,6 +25,29 @@ trading_day_buffer = 1  # Additional buffer to prevent same-day trading
 stock_types = [0, 3, 9]  # ordinary shares, second share classes, ADRs
 price_only_types = [2, 4, 5, 6, 11, 13]  # indices and FX: benchmarks, never eligible
 
+[dividends]
+# Ex-date estimate for report dividends without a dividend calendar entry
+# (Nordics before 2010, other countries before 2015): known_from + lag days.
+# Medians of (first calendar ex-date - known_from) per country over 2010-2026,
+# countries with >= 500 observations (DECISIONS 2026-10-29).
+fallback_lag_days = 63
+[dividends.fallback_lag_days_by_country]
+1 = 77    # Sweden
+2 = 71    # Norway
+3 = 50    # Finland
+4 = 38    # Denmark
+5 = 32    # USA
+6 = 22    # Canada
+7 = 57    # England
+8 = 97    # Germany
+9 = 111   # France
+10 = 104  # Spain
+12 = 97   # Italy
+13 = 60   # Switzerland
+14 = 97   # Belgium
+15 = 75   # Netherlands
+17 = 139  # Poland
+
 [universe]
 # PHILOSOPHY: Universe = all instruments with sufficient data quality
 # NO geographic filters, NO market cap cutoffs, NO liquidity requirements

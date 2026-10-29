@@ -804,3 +804,17 @@ Benchmarks are not strategy trials: they are not selected by a search, so they a
 **Consequence:** junk placeholder prices (e.g. 0.0002 followed by a jump back) that the price threshold happened to exclude are now eligible; read-time glitch handling (DECISIONS "Price glitches") becomes necessary before equal-weighted results are trusted. Takes effect at the next `build-universe`.
 
 **Alternatives considered:** a threshold on unadjusted prices (not available: Börsdata gives only adjusted prices and one year of splits); keeping 5 SEK (biased by later splits).
+
+---
+
+## 2026-10-29 | Dividends on real ex-dates (dividend calendar)
+
+**Finding:** dividends were credited at `known_from + 30` days, about two months before the real ex-date for Swedish companies (AGMs in April–May). Against OMX Stockholm GI the cap-weighted benchmark was +0.6% in February and +1.7% in March, −1.5% in April and −0.8% in May (other months within ±0.15%). A monthly strategy holding dividend payers in February–March and selling before the real ex-date would collect dividends without the matching price drop. Replaces the 2026-10-06 decision "Dividend ex-date estimation (simplified)".
+
+**Decision (user approved the sync):** sync Börsdata's dividend calendar (`ingest sync --dividends`, table `dividend_calendar`). Amounts still come from annual reports, because calendar amounts are not adjusted for later splits (Investor B 2010: calendar 4.00 SEK, adjusted price fell 0.93) while report amounts are, consistently with prices. `assign_ex_dates` gives each report's dividend to the calendar ex-dates on or after its known_from and before the next annual report's known_from (at most 400 days), split in proportion to the calendar amounts (instalments, extra dividends, quarterly payers); same-day payments are summed. Reports without calendar ex-dates in their window (Nordics before 2010, others before 2015) use known_from + the country's median lag from the calendar data (settings.toml `[dividends]`; 63 days for countries with fewer than 500 observations).
+
+**Point-in-time:** a dividend is credited on its ex-date, never before its report's known_from. The fallback lags are medians over 2010–2026 applied to earlier years: they encode a timing pattern only, not amounts or returns. For quarterly payers the payments in a year carry the previous year's annual total (right timing, amount lags one year of dividend growth).
+
+**Takes effect** at the next `build-returns`.
+
+**Alternatives considered:** calendar amounts adjusted by a split factor (Börsdata keeps only one year of splits); keeping the 30-day estimate (moves about 3% of return between months for dividend payers); a fixed fallback lag for all countries (median lags range from 22 days in Canada to 139 in Poland).
