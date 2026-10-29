@@ -18,6 +18,7 @@ import factor_investor.ingest.models  # noqa: E402, F401
 import factor_investor.pit.models  # noqa: E402, F401
 import factor_investor.universe.models  # noqa: E402, F401
 import factor_investor.factors.models  # noqa: E402, F401
+import factor_investor.search.models  # noqa: E402, F401
 
 load_dotenv()
 

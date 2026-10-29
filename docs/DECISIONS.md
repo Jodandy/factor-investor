@@ -890,3 +890,21 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Effect:** US cap-weighted 11.80% with dividends, 9.82% without vs S&P 500 9.27% (price index), monthly correlation 0.993. Nordic cap-weighted results change by at most 0.03 points.
 
 **Alternatives considered:** a minimum turnover-to-market-cap ratio (does not separate them: their ratios overlap with real A shares such as Ericsson A); a weight limit relative to the rest of the market (Novo Nordisk is about half of the Danish universe).
+
+---
+
+## 2026-10-29 | Trial registry
+
+**Decision:** `search.registry.run_trial(TrialSpec)` is the only way to run a research backtest (invariant 5). Table `trials` (migration b4f7c31e45a4), one row per run, written with status `running` before the backtest starts so a crash still counts. Each row holds:
+- **labels:** hypothesis id (must exist as a heading in HYPOTHESES.md), experiment, stage;
+- **what:** strategy id (versioned, from `strategy.registry.register_strategy`), resolved parameters (JSON), SHA-256 of the strategy's source file, area, period, costs, gross flag; `config_hash` covers strategy, parameters, area and period but not the labels;
+- **on what:** data fingerprint (max id of stock_prices, total_returns, fundamentals_pit, fundamental_metrics, price_metrics, universe_constituents, dividend_calendar; every sync or rebuild inserts new rows), price filter id, git commit and dirty flag;
+- **result:** final value, all engine metrics, comparison with the area's saved benchmarks (excess CAGR, tracking error, information ratio, correlation, monthly) and the percentile among the area's random portfolios, daily returns in `data/trials/trial_<id>.parquet` (for PBO and CPCV).
+
+**Guards:** a logged strategy id whose source hash changed is refused ("create _v2"; invariant 9); costs of 0 need `allow_gross` and are labelled gross (invariant 6); uncommitted changes under src/ or config/ are refused, so every trial can be rebuilt from its commit; a repeated configuration on the same data, code and source must reproduce the earlier final value exactly, otherwise the run fails as nondeterministic (invariant 7).
+
+**Trial counts** (`trial_counts`, `factor-investor trials counts`): distinct configurations per hypothesis and experiment, failed runs included. A configuration run twice counts once.
+
+**Until the component framework exists** (ARCHITECTURE §4), the strategy factory's source file is the only component hash; the git commit covers everything else.
+
+**Alternatives considered:** a JSON-lines file (no queries, easy to bypass); hashing the whole source tree per trial (any unrelated edit would look like a new version); counting runs rather than distinct configurations (reruns would inflate the count).

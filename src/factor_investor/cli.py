@@ -3,6 +3,7 @@
 Usage: factor-investor [COMMAND] [OPTIONS]
 """
 
+import json
 import logging
 from pathlib import Path
 
@@ -594,6 +595,62 @@ def benchmarks_run(
     end = date_type.fromisoformat(to_date) if to_date else date_type.today()
     paths = run_many(runs, date_type.fromisoformat(from_date), end, workers=workers)
     console.print(f"[green]{len(paths)} benchmark runs written to data/benchmarks/[/green]")
+
+
+trials_app = typer.Typer(help="Trial registry: every research backtest")
+app.add_typer(trials_app, name="trials")
+
+
+@trials_app.command("list")
+def trials_list(
+    experiment: str = typer.Option(None, "--experiment", help="Only this experiment"),
+    limit: int = typer.Option(30, "--limit", help="Most recent N trials"),
+) -> None:
+    """List logged trials, newest first."""
+    from sqlalchemy import select
+
+    from factor_investor.db import get_session
+    from factor_investor.search.models import Trial
+
+    query = select(Trial).order_by(Trial.id.desc()).limit(limit)
+    if experiment:
+        query = query.where(Trial.experiment == experiment)
+    table = Table(title="Trials")
+    for column in ("id", "hypothesis", "experiment", "strategy", "params", "status", "CAGR", "vs EW"):
+        table.add_column(column)
+    with get_session() as session:
+        for t in session.scalars(query):
+            metrics = t.metrics or {}
+            excess = (metrics.get("vs") or {}).get("equal_weight_v1", {}).get("excess_cagr")
+            table.add_row(
+                str(t.id),
+                t.hypothesis_id,
+                t.experiment,
+                t.strategy_id,
+                json.dumps(t.params, sort_keys=True),
+                t.status + (" (gross)" if t.gross else ""),
+                f"{metrics['cagr']:.2%}" if metrics.get("cagr") is not None else "",
+                f"{excess:+.2%}" if excess is not None else "",
+            )
+    console.print(table)
+
+
+@trials_app.command("counts")
+def trials_counts(
+    hypothesis: str = typer.Option(None, "--hypothesis", help="Only this hypothesis"),
+) -> None:
+    """Distinct configurations tried per hypothesis and experiment."""
+    from factor_investor.db import get_session
+    from factor_investor.search.registry import trial_counts
+
+    with get_session() as session:
+        counts = trial_counts(session, hypothesis)
+    table = Table(title="Trial counts")
+    for column in counts.columns:
+        table.add_column(column)
+    for row in counts.iter_rows():
+        table.add_row(*(str(v) for v in row))
+    console.print(table)
 
 
 research_app = typer.Typer(help="Research and analysis tools")
