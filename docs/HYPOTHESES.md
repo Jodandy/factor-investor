@@ -126,6 +126,8 @@ Ingen selektion. Finns för att kalibrera motorn och ge baslinjen som allt annat
 - **Värde:** alla 12 slår likavikt; överavkastning median +3,1 %/år (min +1,1 %), informationskvot median 0,30, percentil bland slumpportföljer median 98,6 %. Stabilt över parametrar. Men ojämnt över tid: slår likavikt 11–12 år av 19, och utan de tre bästa åren (2009 +54, 2021 +31, 2025 +30 procentenheter för topp 30 månadsvis) är medelöveravkastningen −1,3 %/år.
 - **Momentum:** 9 av 12 slår likavikt; median +0,8 %/år (−3,0 till +4,3), starkt beroende av antal innehav (topp 20 sämst, topp 50 bäst). Starkt 2013–2017 (+9,5 %/år), svagt 2023–2026 (−12,4 %/år).
 - **Status:** inte falsifierad men inte bekräftad. Värdepremien finns i datan men hänger på ett fåtal år. Deflaterad Sharpe och PBO (24 försök) återstår. Börsdata saknar avnoterade bolag, vilket troligen gynnar värde mest (billiga bolag som gick i konkurs saknas).
+- **Validering (CSCV, 8 block, överavkastning mot likavikt):** PBO 86 %: konfigurationen som är bäst i ena halvan av historiken hamnar under medianen i den andra i 86 % av de 70 uppdelningarna, och förlorar mot likavikt där i 51 %. Att välja "bästa" parametrar ger ingenting (out-of-sample Sharpe 0,00 mot 0,19 för medianen). Deflaterad Sharpe för bästa konfigurationen (momentum topp 50 månadsvis, informationskvot 0,37): 70 %, under 95 %. Värde utan likviditetsfilter svänger från −62 % till +78 % mot likavikt mellan block (illikvida småbolag); med filtret 1 MSEK lugnare.
+- **Slutsats:** premierna syns i snitt (medianen slår likavikt) men är inte robusta över tid, och parameterval är brus. Inget av detta går vidare som strategi; H5 står kvar som baslinje.
 
 
 ---

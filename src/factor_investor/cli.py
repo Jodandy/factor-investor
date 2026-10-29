@@ -616,7 +616,16 @@ def trials_list(
     if experiment:
         query = query.where(Trial.experiment == experiment)
     table = Table(title="Trials")
-    for column in ("id", "hypothesis", "experiment", "strategy", "params", "status", "CAGR", "vs EW"):
+    for column in (
+        "id",
+        "hypothesis",
+        "experiment",
+        "strategy",
+        "params",
+        "status",
+        "CAGR",
+        "vs EW",
+    ):
         table.add_column(column)
     with get_session() as session:
         for t in session.scalars(query):
@@ -651,6 +660,62 @@ def trials_counts(
     for row in counts.iter_rows():
         table.add_row(*(str(v) for v in row))
     console.print(table)
+
+
+@trials_app.command("validate")
+def trials_validate(
+    experiment: str = typer.Option(..., "--experiment", help="Experiment to validate"),
+    blocks: int = typer.Option(8, "--blocks", help="Even number of time blocks for CSCV"),
+    purge: int = typer.Option(1, "--purge", help="Months purged next to in-sample blocks"),
+    total: bool = typer.Option(
+        False, "--total", help="Use total returns instead of excess over equal_weight_v1"
+    ),
+) -> None:
+    """CSCV/PBO, deflated Sharpe and block stability from logged trials."""
+    from factor_investor.db import get_session
+    from factor_investor.validation.experiment import VALIDATION_DIR, validate_experiment
+
+    with get_session() as session:
+        report = validate_experiment(
+            session, experiment, n_blocks=blocks, purge=purge, relative=not total
+        )
+    c, d = report["cscv"], report["deflated_sharpe"]
+    first, last, months = report["months"]
+    console.print(
+        f"[bold]{experiment}[/bold]: {report['configurations']} configurations, "
+        f"{months} months {first[:7]}..{last[:7]}, {blocks} blocks, purge {purge}, "
+        f"{report['returns']}"
+    )
+    console.print(
+        f"PBO {c['pbo']:.0%} over {c['combinations']} splits; "
+        f"IS winner loses money OOS in {c['prob_oos_loss']:.0%}; "
+        f"OOS Sharpe of IS winner {c['oos_sharpe_is_best_mean'] * 12**0.5:.2f} vs "
+        f"median configuration {c['oos_sharpe_median_config_mean'] * 12**0.5:.2f} (annualized)"
+    )
+    console.print(
+        f"Deflated Sharpe of the best configuration (trial {d['trial_id']}, Sharpe "
+        f"{d['sharpe_annualized']:.2f}, {report['trials_for_hypothesis']} trials): "
+        f"{d['dsr']:.0%}"
+    )
+    table = Table(title="Excess return over equal_weight_v1 per block")
+    table.add_column("trial")
+    table.add_column("params", no_wrap=True)
+    for start, end in report["blocks"]:
+        table.add_column(f"{start[2:4]}-{end[2:4]}", justify="right")
+    table.add_column("beat", justify="right")
+    for row in report["block_stability"]:
+        p = row["params"]
+        label = " ".join(
+            str(p[k]) for k in ("factor", "top_n", "rebalance", "min_turnover") if k in p
+        )
+        table.add_row(
+            str(row["trial_id"]),
+            label or json.dumps(p),
+            *(f"{x:+.0%}" for x in row["excess_by_block"]),
+            f"{row['share_of_blocks_beaten']:.0%}",
+        )
+    console.print(table)
+    console.print(f"Report: {VALIDATION_DIR / (experiment + '.json')}")
 
 
 research_app = typer.Typer(help="Research and analysis tools")

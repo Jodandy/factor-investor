@@ -178,3 +178,69 @@ def test_period_dates_are_stored(session: Session, tmp_path: Path) -> None:
     assert trial is not None
     assert (trial.from_date, trial.to_date) == (DAYS[0], DAYS[-1])
     assert isinstance(trial.from_date, date)
+
+
+def test_validate_experiment_from_logged_trials(session: Session, tmp_path: Path) -> None:
+    """Three configurations over two years of synthetic prices, validated
+    from their logged returns against a synthetic benchmark file."""
+    import json
+
+    from factor_investor.validation.experiment import validate_experiment
+
+    days = trading_days(730)
+    prices = random_walk_prices(10, 730, seed=5)
+    schedules = {
+        "a": {days[0]: equal_weight([0, 1, 2])},
+        "b": {days[0]: equal_weight([3, 4, 5])},
+        "c": {days[0]: equal_weight([6, 7, 8])},
+    }
+    benchmarks = tmp_path / "benchmarks"
+    benchmarks.mkdir()
+    InMemoryEngine(prices).run(
+        ScheduledStrategy({days[0]: equal_weight(list(range(10)))}), days[0], days[-1]
+    ).returns_df.select("date", "portfolio_return").write_parquet(
+        benchmarks / "equal_weight_v1_SE.parquet"
+    )
+    original = STRATEGIES["registry_db_test_v1"]
+    STRATEGIES["registry_db_test_v1"] = type(original)(
+        original.strategy_id,
+        lambda params: ScheduledStrategy(schedules[params["pick"]]),
+        original.source_file,
+    )
+    try:
+        for pick in schedules:
+            trial = TrialSpec(
+                hypothesis_id="H0",
+                experiment="registry_db_validate",
+                strategy_id="registry_db_test_v1",
+                params={"pick": pick},
+                area="SE",
+                from_date=days[0],
+                to_date=days[-1],
+            )
+            run_trial(
+                trial,
+                engine=InMemoryEngine(prices),
+                session=session,
+                trials_dir=tmp_path,
+                benchmarks_dir=benchmarks,
+                allow_dirty=True,
+            )
+    finally:
+        STRATEGIES["registry_db_test_v1"] = original
+
+    report = validate_experiment(
+        session,
+        "registry_db_validate",
+        n_blocks=4,
+        purge=0,
+        out_dir=tmp_path / "validation",
+        benchmarks_dir=benchmarks,
+    )
+    assert report["configurations"] == 3
+    assert report["cscv"]["combinations"] == 6
+    assert 0.0 <= report["cscv"]["pbo"] <= 1.0
+    assert report["returns"] == "excess over equal_weight_v1"
+    assert len(report["block_stability"]) == 3
+    saved = json.loads((tmp_path / "validation" / "registry_db_validate.json").read_text())
+    assert saved["cscv"]["pbo"] == report["cscv"]["pbo"]

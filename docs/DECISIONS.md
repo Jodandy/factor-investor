@@ -908,3 +908,20 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Until the component framework exists** (ARCHITECTURE §4), the strategy factory's source file is the only component hash; the git commit covers everything else.
 
 **Alternatives considered:** a JSON-lines file (no queries, easy to bypass); hashing the whole source tree per trial (any unrelated edit would look like a new version); counting runs rather than distinct configurations (reruns would inflate the count).
+
+---
+
+## 2026-10-29 | Standard validation of every experiment: CSCV/PBO, deflated Sharpe, block stability
+
+**Decision (user):** every experiment that compares configurations ends with `factor-investor trials validate --experiment <name>` (`validation/experiment.py`, `validation/cscv.py`). It uses the logged daily returns (no new backtests), compounded to months:
+- **CSCV/PBO** (Bailey, Borwein, López de Prado, Zhu 2017): 8 blocks by default; for each of the 70 ways to take 4 blocks as in-sample, the configuration with the best in-sample Sharpe ratio is ranked out-of-sample on the other 4. PBO is the share of splits where it ranks at or below the median. Every block is out-of-sample in 35 splits, so all periods weigh equally (invariant 4). One month on each side of an in-sample block is purged from the out-of-sample set.
+- **Deflated Sharpe ratio** (Bailey, López de Prado 2014) of the configuration with the best full-period Sharpe ratio, with the number of distinct configurations logged for the hypothesis (failed included) and the variance of Sharpe ratios across the experiment's configurations; adjusted for skew and kurtosis.
+- **Block stability:** compounded excess return over `equal_weight_v1` per block and the share of blocks beaten.
+
+**Excess returns by default:** CSCV and the deflated Sharpe ratio run on monthly returns minus the area's `equal_weight_v1`. On total returns every long-only portfolio passes (H5: deflated Sharpe 99%, PBO 79%), because the equity premium needs no skill. `--total` gives the total-return version.
+
+**Report** saved to `data/validation/<experiment>.json`.
+
+**Known limit:** the trial count treats configurations as independent; correlated configurations make the true number smaller, so the deflated Sharpe ratio is conservative.
+
+**Alternatives considered:** walk-forward with one rolling split (uses each period once as out-of-sample and favours the recent end); total returns (see above); a fixed holdout (ruled out by invariant 4).
