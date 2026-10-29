@@ -86,6 +86,18 @@ Parameterrum (24): viktuppsättning {lika (alla 1), kvalitetstung (lönsamhet oc
 
 **Andra marknader, förregistrerat 2026-10-29**: samma regler och parameterrum (24) i Norge, Finland, Danmark och Europa (Stoxx 600-likt, i EUR): `h2_composite_{no,fi,dk,eu}_v1`, var och en mot sin kontroll `h0_liquid_equal_weight_{no,fi,dk,eu}_v1` (likavikt över samma likvida universum). Omsättningsgolv ungefär 1 MSEK/dag: 1 MNOK, 100 kEUR, 0,7 MDKK, 100 kEUR. Alla körningar räknas i H2:s antal försök. Bekräftas om flertalet marknader visar samma mönster som Sverige (de flesta konfigurationer slår kontrollen i de flesta perioder); i de nordiska grannländerna är universumet litet tidigt (10–20 bolag 2009), så urvalet betyder mest under senare år.
 
+**Resultat andra marknader 2026-10-29** (trials 104–229; varje konfiguration mot kontrollen med samma rebalansering; H2 har nu 120 konfigurationer):
+
+| Marknad | Överavkastning mot kontroll, median (min–max) | Slår kontrollen | Block slagna, median | PBO | Bästa in-sample förlorar OOS | Deflaterad Sharpe (120 försök) |
+|---|---|---|---|---|---|---|
+| SE | +4,0 % (+2,1 – +7,4) | 24/24 | 88 % | 71 % | 1 % | 94 % |
+| NO | +5,9 % (+3,6 – +9,1) | 24/24 | 88 % | 63 % | 0 % | 99 % |
+| FI | +2,6 % (+0,4 – +5,2) | 24/24 | 75 % | 64 % | 9 % | 91 % |
+| DK | +3,6 % (+1,7 – +5,3) | 24/24 | 75 % | 50 % | 4 % | 96 % |
+| EU | +4,1 % (+1,0 – +5,7) | 24/24 | 75 % | 70 % | 6 % | 91 % |
+
+Alla viktuppsättningar slår kontrollen i alla marknader (median per uppsättning +1,8 till +6,3 %/år). Parameterval är fortfarande brus (PBO 50–71 %), men familjen som helhet håller. Mönstret från Sverige upprepas, alltså bekräftat enligt förregistreringen. Reservationer: marknaderna är inte oberoende (Europa innehåller de nordiska bolagen, samma globala faktorregimer), Börsdata saknar avnoterade bolag i alla marknader, och engångsintäkter i v1.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
