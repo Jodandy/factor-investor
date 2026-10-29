@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Double,
     ForeignKey,
     Index,
     Integer,
@@ -70,12 +71,11 @@ class TotalReturn(Base):
     close_price: Mapped[Decimal] = mapped_column(
         Numeric(24, 6), nullable=False
     )  # In local currency
-    total_return_index: Mapped[Decimal] = mapped_column(
-        Numeric(24, 6), nullable=False
-    )  # Cumulative, base 100
-    total_return_index_sek: Mapped[Decimal | None] = mapped_column(
-        Numeric(24, 6)
-    )  # Converted to SEK
+    # Cumulative, base 100. Double precision, not Numeric(24, 6): a fixed
+    # number of decimals rounds the index of stocks that fell >99.9999% to zero
+    # (DATA_AUDIT "Benchmark vs OMX Stockholm GI").
+    total_return_index: Mapped[float] = mapped_column(Double, nullable=False)
+    total_return_index_sek: Mapped[float | None] = mapped_column(Double)  # Converted to SEK
     dividend_on_date: Mapped[Decimal | None] = mapped_column(
         Numeric(24, 6)
     )  # Dividend paid today (if any)
