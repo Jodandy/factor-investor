@@ -81,3 +81,25 @@ def _distinct_metrics(table: str) -> list[str]:
 def known_metrics() -> frozenset[str]:
     """Every metric name in fundamental_metrics and price_metrics."""
     return frozenset(_distinct_metrics("fundamental_metrics") + _distinct_metrics("price_metrics"))
+
+
+def metric_history_all(metric: str) -> pl.DataFrame:
+    """[instrument_id, date, value] for every snapshot date (each holding only
+    what was known on its own date). One query instead of one per date; callers
+    must restrict it to dates up to their own (the point-in-time view does)."""
+    query = text("""
+        SELECT instrument_id, date, value FROM fundamental_metrics
+        WHERE metric = :metric AND known_from <= date AND value IS NOT NULL
+        UNION ALL
+        SELECT instrument_id, date, value FROM price_metrics
+        WHERE metric = :metric AND value IS NOT NULL
+    """)
+    with get_session() as session:
+        rows = session.execute(query, {"metric": metric}).all()
+    if not rows:
+        return pl.DataFrame(schema=HISTORY_SCHEMA)
+    ids, dates, values = zip(*rows, strict=True)
+    return pl.DataFrame(
+        {"instrument_id": ids, "date": dates, "value": [float(v) for v in values]},
+        schema=HISTORY_SCHEMA,
+    ).sort("date", "instrument_id")

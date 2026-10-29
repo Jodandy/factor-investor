@@ -12,7 +12,7 @@ from functools import cache, lru_cache
 import polars as pl
 
 from factor_investor.benchmarks.universe import Market, Region, investable_universe
-from factor_investor.factors.snapshot import known_metrics, metric_history, metric_snapshot
+from factor_investor.factors.snapshot import known_metrics, metric_history_all, metric_snapshot
 
 # Universe fields usable in expressions; amounts in the area's currency
 UNIVERSE_FIELDS = frozenset({"market_cap", "turnover", "price", "years_of_history"})
@@ -23,9 +23,15 @@ def _snapshot(metric: str, as_of: date) -> pl.DataFrame:
     return metric_snapshot(metric, as_of)
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=64)
+def _full_history(metric: str) -> pl.DataFrame:
+    return metric_history_all(metric)
+
+
 def _history(metric: str, from_date: date, as_of: date) -> pl.DataFrame:
-    return metric_history(metric, from_date, as_of)
+    """Snapshots in (from_date, as_of]: the full history is read once per
+    process and cut here, so nothing after as_of reaches a component."""
+    return _full_history(metric).filter((pl.col("date") > from_date) & (pl.col("date") <= as_of))
 
 
 @cache
@@ -35,7 +41,7 @@ def available_names() -> frozenset[str]:
 
 def clear_caches() -> None:
     _snapshot.cache_clear()
-    _history.cache_clear()
+    _full_history.cache_clear()
     investable_universe.cache_clear()
 
 

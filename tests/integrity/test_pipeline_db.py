@@ -115,7 +115,11 @@ FULL = pipeline(
         {"component": "percentile_v1", "params": {"metric": "roic"}, "weight": 2},
         {
             "component": "percentile_v1",
-            "params": {"metric": "ev_ebit", "higher_is_better": False, "non_positive_is_worst": True},
+            "params": {
+                "metric": "ev_ebit",
+                "higher_is_better": False,
+                "non_positive_is_worst": True,
+            },
             "weight": 1,
         },
         {
@@ -124,6 +128,11 @@ FULL = pipeline(
             "weight": 1,
         },
         {"component": "percentile_v1", "params": {"metric": "momentum_12_1m"}, "weight": 1},
+        {
+            "component": "history_stat_v1",
+            "params": {"metric": "revenue_growth_1y", "stat": "share_positive", "years": 5},
+            "weight": 1,
+        },
     ],
     {"component": "top_n_hysteresis_v1", "params": {"top_n": 20, "sell_rank": 2.0}},
 )
@@ -176,3 +185,23 @@ def test_full_pipeline_identical_with_future_data_deleted() -> None:
         truncated = full_pipeline_targets()
 
     assert_frame_equal(full, truncated, check_exact=True)
+
+
+def test_history_cut_matches_the_dated_query() -> None:
+    """The cached full history, cut at T, equals the history queried up to T."""
+    from datetime import timedelta
+
+    from factor_investor.benchmarks.universe import SWEDEN
+    from factor_investor.factors.snapshot import metric_history
+    from factor_investor.pipeline.view import PointInTimeView
+
+    clear_caches()
+    view = PointInTimeView(date(2016, 6, 30), SWEDEN)
+    cut = view.metric_history("roic", 5)
+    queried = metric_history(
+        "roic", date(2016, 6, 30) - timedelta(days=round(365.25 * 5)), date(2016, 6, 30)
+    )
+    assert cut["date"].max() <= date(2016, 6, 30)
+    assert_frame_equal(
+        cut.sort("instrument_id", "date"), queried.sort("instrument_id", "date"), check_exact=True
+    )
