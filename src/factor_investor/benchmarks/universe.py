@@ -58,6 +58,10 @@ class Market:
 
 
 SWEDEN = Market("SE", 1, "SEK")
+NORWAY = Market("NO", 2, "NOK")
+FINLAND = Market("FI", 3, "EUR")
+DENMARK = Market("DK", 4, "DKK")
+NORDICS = (SWEDEN, NORWAY, FINLAND, DENMARK)
 
 
 @cache
@@ -78,8 +82,12 @@ def _instrument_markets() -> pl.DataFrame:
     )
 
 
+@cache
 def investable_universe(as_of_date: date, market: Market) -> pl.DataFrame:
-    """Eligible domestic names in `market` on as_of_date, one listing per company."""
+    """Eligible domestic names in `market` on as_of_date, one listing per company.
+
+    Cached per process: random-pick runs with different seeds share it.
+    """
     eligible = get_universe(as_of_date, is_eligible=True)
     if eligible.is_empty():
         return eligible
