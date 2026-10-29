@@ -104,8 +104,9 @@ Tested by searching for well-known Swedish companies that were acquired/delisted
 
 ### Dividends
 - **Endpoint:** `/v1/instruments/dividend/calendar`
-- **Fields:** Amount, currency, ex-date
-- **Coverage:** TBD
+- **Fields (checked 2026-10-29):** `insId`, `values[]` with `amountPaid`, `currencyShortName`, `excludingDate` (ex-date), `dividendType` (0 ordinary; 1 and 4 seen for extra and instalment payments, meaning not verified), `distributionFrequency` (null so far)
+- **Coverage:** from 2010 (Volvo B and Investor B: 25–26 rows, 2010-04-15 onwards); includes announced future ex-dates (Investor B 2026-11-06)
+- **Amounts are not split-adjusted:** Investor B 2010-04-15 is 4.00 SEK, but the split-adjusted price fell 0.93 SEK that day (4:1 split in 2022). Report dividends are adjusted (1.00 for 2009), consistent with prices.
 
 ### Indices Available
 Many indices available including:
@@ -364,6 +365,15 @@ Implied share count (`market_cap_local / price`) in `universe_constituents`, jum
 Extreme but arithmetically real ratios also occur (Karnov P/E 20,852 from near-zero earnings) and are kept.
 
 Handling (planned, in the cap-weighting component, no rebuild): skip market cap when a report's share count differs more than 10× from the median of the last four reports; exclude when daily turnover > market cap; cap single-name weights. Equal-weight and rank-based components are unaffected by level errors.
+
+### Benchmark vs OMX Stockholm GI (checked 2026-10-29)
+
+`cap_weight_v1` for Sweden over 2008-01-02..2026-10-27 vs OMX Stockholm GI (ins_id 639): CAGR 9.61% vs 10.05%, monthly correlation 0.969, tracking error 4.2% a year. Causes found:
+
+- **Foreign companies at full global market cap:** Nokia's SEK listing (ins_id 249, 484 bn SEK) was the largest name in the Swedish universe at the end of 2008 (capped at 10%); foreign-ISIN listings (Nokia and other Finnish companies, AstraZeneca, ABB) were 9 names but 37% of market cap. Restricting to SE ISINs: CAGR 9.91%, tracking error 3.4%, and 2009–2010 go from −13.5 and −7.0 points to +4.4 and +4.6.
+- **`min_price = 5` on split-adjusted prices:** 47 Swedish stocks ineligible at the end of 2008, including Hexagon (4.75 SEK adjusted, about 60 SEK actual). Exclusion depends on later splits. Small effect on cap weighting (+0.03 points a year).
+- **Dividend timing:** mean monthly difference to the index is +0.6% in February and +1.7% in March, −1.5% in April and −0.8% in May, and within ±0.15% in other months. Estimated ex-dates (`known_from + 30`) fall about two months before the real ones (Investor B 2009 dividend: 2010-02-21 estimated, 2010-04-15 actual). Nets out over a year, but moves about 3% of return between months for dividend payers.
+- **Total return index precision:** `Numeric(24, 6)` with base 100 rounds the index of stocks that fell more than 99.9999% to zero (9,641 rows, 26 instruments); 108 instruments fall below 0.0001, where returns move in steps of 1% or more. The engine treats non-positive prices as missing.
 
 ---
 

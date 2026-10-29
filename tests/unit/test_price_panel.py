@@ -36,3 +36,20 @@ def test_prices_on_day_without_data_is_empty_with_schema() -> None:
     day = panel().prices_on(date(2024, 2, 1))
     assert day.is_empty()
     assert day.schema == pl.Schema({"instrument_id": pl.Int32, "price": pl.Float64})
+
+
+def test_non_positive_prices_are_treated_as_missing() -> None:
+    """A total return index of 0 (or below) is not a tradable price: the
+    instrument has no price that day, but the day stays in the calendar."""
+    p = PricePanel.from_frame(
+        pl.DataFrame(
+            {
+                "instrument_id": [1, 2, 1],
+                "date": [D1, D1, D2],
+                "price": [100.0, 0.0, 0.0],
+            }
+        )
+    )
+    assert p.prices_on(D1).rows() == [(1, 100.0)]
+    assert p.prices_on(D2).is_empty()
+    assert p.trading_days == [D1, D2]

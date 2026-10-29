@@ -95,17 +95,24 @@ class PricePanel:
 
     @classmethod
     def from_frame(cls, prices: pl.DataFrame) -> "PricePanel":
-        """Build from a frame with columns [instrument_id, date, price]."""
+        """Build from a frame with columns [instrument_id, date, price].
+
+        Non-positive prices (a total return index that rounded to zero) are
+        not tradable and are dropped; their days stay in the calendar.
+        """
         prices = prices.select(
             pl.col("instrument_id").cast(pl.Int32),
             pl.col("date"),
             pl.col("price").cast(pl.Float64),
         )
+        trading_days = sorted(prices["date"].unique().to_list())
         by_day = {
             key[0]: frame.drop("date")
-            for key, frame in prices.partition_by("date", as_dict=True).items()
+            for key, frame in prices.filter(pl.col("price") > 0)
+            .partition_by("date", as_dict=True)
+            .items()
         }
-        return cls(trading_days=sorted(by_day), _by_day=by_day)
+        return cls(trading_days=trading_days, _by_day=by_day)
 
     def trading_days_between(self, from_date: date, to_date: date) -> list[date]:
         return [d for d in self.trading_days if from_date <= d <= to_date]
