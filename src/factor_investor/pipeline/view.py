@@ -17,8 +17,9 @@ import polars as pl
 from factor_investor.benchmarks.universe import Market, Region, investable_universe
 from factor_investor.factors.snapshot import known_metrics, metric_history_all, metric_snapshot
 
-# Universe fields usable in expressions; amounts in the area's currency
-UNIVERSE_FIELDS = frozenset({"market_cap", "turnover", "price", "years_of_history"})
+# Universe fields usable in expressions; amounts in the area's currency.
+# sector_id is Börsdata's current sector (no history; companies rarely move).
+UNIVERSE_FIELDS = frozenset({"market_cap", "turnover", "price", "years_of_history", "sector_id"})
 
 
 # Instruments removed by a stress scenario: [instrument_id, date]; from that
@@ -49,6 +50,19 @@ def _history(metric: str, from_date: date, as_of: date) -> pl.DataFrame:
     """Snapshots in (from_date, as_of]: the full history is read once per
     process and cut here, so nothing after as_of reaches a component."""
     return _full_history(metric).filter((pl.col("date") > from_date) & (pl.col("date") <= as_of))
+
+
+@cache
+def _sectors() -> pl.DataFrame:
+    from sqlalchemy import text
+
+    from factor_investor.db import get_session
+
+    with get_session() as session:
+        rows = session.execute(text("SELECT ins_id, sector_id FROM instruments")).all()
+    return pl.DataFrame(
+        rows, schema={"instrument_id": pl.Int32, "sector_id": pl.Float64}, orient="row"
+    )
 
 
 @cache
@@ -91,7 +105,7 @@ class PointInTimeView:
             (pl.col("median_turnover_60d") * pl.col("to_base")).alias("turnover"),
             pl.col("price"),
             pl.col("years_of_history"),
-        )
+        ).join(_sectors(), on="instrument_id", how="left")
 
     def metric(self, name: str) -> pl.DataFrame:
         return _snapshot(name, self._as_of)

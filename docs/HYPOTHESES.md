@@ -221,6 +221,22 @@ Klarar testet: konkurserna sänker båda portföljernas avkastning med 2–4 pro
 
 ---
 
+## H6 — Greenblatts magiska formel
+
+**Idé**: Joel Greenblatts regel (The Little Book That Beats the Market, 2005): ranka bolag på avkastningsgrad (EBIT/EV) och avkastning på kapital (EBIT/(rörelsekapital + anläggningstillgångar)), summera rankningarna och köp de bästa. Håll ungefär ett år.
+
+**Motivering**: Bra bolag till lågt pris; publicerad regel, så 2008–2026 är i praktiken out-of-sample för den. Testar om en enkel, känd kombination av kvalitet och värdering håller i Sverige efter publiceringen.
+
+**Förregistrering v1 (2026-10-29)**: `config/strategies/magic_formula_v1.yaml`, SE, 2008-12-01–2026-10-27 (start i december så att årlig och kvartalsvis rebalansering båda investerar från första rebalanseringen), 10 bps.
+- universum: omsättning ≥ 1 MSEK/dag, utan finans och fastighet (Börsdata sektor 1) och kraftförsörjning (10); sektorn är Börsdatas nuvarande (ingen historik)
+- avkastningsgrad: EV/EBIT, lågt bäst, förlust sämst; avkastning på kapital: ROIC före skatt (närmaste mått i basdatan); båda krävs, lika vikt (percentiler i stället för rangsumma)
+- parameterrum (8): antal {20, 30} × rebalansering {årlig, kvartal} × börsvärde ≥ {500 MSEK, 2 MDSEK}; ingen hysteres
+- kontroll: `h0_magic_formula_universe_v1`, likavikt över samma universum med samma rebalansering
+
+**Falsifieras om**: medianen över parameterrummet inte slår kontrollen, eller om resultatet bara håller i enstaka tidsblock.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.

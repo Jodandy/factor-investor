@@ -1,0 +1,46 @@
+# H6 — Joel Greenblatt's magic formula (The Little Book That Beats the Market,
+# 2005), pre-registered 2026-10-29. Rank on earnings yield (EBIT/EV) and return
+# on capital (pretax ROIC) with equal weight, buy the top N, no hysteresis.
+# Financials, real estate (Börsdata sector 1) and utilities (10) excluded.
+# Search space: top 20/30 x annual/quarterly x market cap >= 500 MSEK / 2 BSEK = 8.
+# Never edit after a logged run: create _v2 instead.
+id: magic_formula_v1
+hypothesis: H6
+description: Magic formula (EV/EBIT and pretax ROIC, equal rank weight), Sweden
+area: SE
+rebalance:
+  search:
+  - annual
+  - quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and sector_id != 1 and sector_id != 10
+- component: expression_v1
+  params:
+    expression:
+      search:
+        mcap_500m: market_cap >= 500000000
+        mcap_2b: market_cap >= 2000000000
+scoring:
+  min_coverage: 1.0
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: roic_pretax
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n:
+      search:
+      - 20
+      - 30
+    sell_rank: 1.0

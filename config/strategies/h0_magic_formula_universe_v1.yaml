@@ -1,0 +1,32 @@
+# H0 control for H6 (magic formula): equal weight over the same universe
+# (turnover >= 1 MSEK/day, no financials, real estate or utilities, the same
+# market cap floor) with the same rebalancing, no selection.
+# Never edit after a logged run: create _v2 instead.
+id: h0_magic_formula_universe_v1
+hypothesis: H0
+description: Equal weight over the magic formula universe (control for H6)
+area: SE
+rebalance:
+  search:
+  - annual
+  - quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and sector_id != 1 and sector_id != 10
+- component: expression_v1
+  params:
+    expression:
+      search:
+        mcap_500m: market_cap >= 500000000
+        mcap_2b: market_cap >= 2000000000
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0

@@ -224,3 +224,21 @@ def test_failed_instruments_leave_the_universe_from_their_failure_date() -> None
     assert first not in july and second not in july
     after = PointInTimeView(date(2016, 7, 29), SWEDEN).universe()["instrument_id"].to_list()
     assert first in after and second in after  # only inside the scenario
+
+
+def test_sector_field_in_expressions() -> None:
+    """Börsdata sector 1 = financials and real estate, 10 = utilities."""
+    from factor_investor.benchmarks.universe import SWEDEN
+    from factor_investor.components.base import build_component
+    from factor_investor.pipeline.view import PointInTimeView
+
+    clear_caches()
+    view = PointInTimeView(date(2016, 6, 30), SWEDEN)
+    universe = view.universe()
+    assert set(universe["sector_id"].drop_nulls().unique().to_list()) <= set(range(1, 11))
+    kept = build_component(
+        "expression_v1", {"expression": "sector_id != 1 and sector_id != 10"}
+    ).run(view, universe.select("instrument_id"))
+    sectors = universe.join(kept, on="instrument_id")["sector_id"]
+    assert 0 < len(kept) < len(universe)
+    assert not sectors.is_in([1.0, 10.0]).any()
