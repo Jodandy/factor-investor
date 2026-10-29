@@ -100,6 +100,10 @@ Alla viktuppsättningar slår kontrollen i alla marknader (median per uppsättni
 
 **USA, förregistrerat 2026-10-29**: `h2_composite_us_v1` mot `h0_liquid_equal_weight_us_v1`, samma regler och parameterrum (24), omsättningsgolv 100 kUSD/dag. Varning: Börsdata har bara bolag som är noterade i dag (1 625 amerikanska bolag i universumet 2008 mot omkring 5 000 noterade då), så alla absoluta avkastningar är kraftigt överskattade. Jämförelsen mot kontrollen är delvis skyddad (båda väljer bland samma överlevare), men den visar inte om H2 hade valt bolag som senare försvann.
 
+**Resultat USA 2026-10-29** (trials 230–255): H2 förlorar mot kontrollen i alla 24 konfigurationer, median −3,3 %/år (−5,2 till −1,3), i alla viktuppsättningar. Slår kontrollen i 38 % av blocken; störst förluster 2017–2022 (−29 och −40 procentenheter per block), när breda tillväxtbolag drog ifrån och värde- och utdelningsbolag släpade. CSCV: bästa in-sample förlorar out-of-sample i 94 % av uppdelningarna; deflaterad Sharpe 5 % (144 försök). H2 median-CAGR 8,6 % mot kontrollens 11,7–12,0 % och börsvärdesviktat 11,8 %.
+
+**Samlad status H2:** håller i Sverige, Norge, Finland, Danmark och Europa, men inte i USA. Alltså ingen universell premie i den här formen: antingen marknadsspecifik (mindre, mindre bevakade marknader), periodberoende (USA:s tillväxtdominans 2017–2022), eller påverkad av att amerikanska data bara innehåller överlevare (kontrollen av överlevare är ovanligt stark, 11,7 %/år). Kan inte avgöras med dessa data.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
