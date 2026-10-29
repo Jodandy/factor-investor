@@ -130,3 +130,26 @@ def test_benchmark_comparison_ranks_against_random_portfolios(tmp_path: Path) ->
     assert "cap_weight_v1" not in result
     assert result["random_pick_v1_SE_k30"]["runs"] == 5
     assert result["random_pick_v1_SE_k30"]["percentile"] == pytest.approx(0.6)
+
+
+def test_scenario_is_part_of_the_configuration() -> None:
+    plain = spec()
+    stressed = spec(scenario={"bankruptcy": {"rate": 0.05, "weak_multiplier": 4.0, "seed": 1}})
+    assert config_hash(plain) != config_hash(stressed)
+    # no scenario: the hash is the same as before scenarios existed
+    assert config_hash(plain) == config_hash(spec(scenario=None))
+    stressed.validate()
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        {"earthquake": {}},
+        {"bankruptcy": {"rate": 1.5, "weak_multiplier": 4.0, "seed": 1}},
+        {"bankruptcy": {"rate": 0.05, "weak_multiplier": 0.5, "seed": 1}},
+        {"bankruptcy": {"rate": 0.05}},
+    ],
+)
+def test_invalid_scenarios_are_refused(scenario: dict[str, object]) -> None:
+    with pytest.raises(ValueError, match="scenario"):
+        spec(scenario=scenario).validate()

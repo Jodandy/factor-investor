@@ -85,9 +85,11 @@ def load_experiment(
     chosen = _completed(session, experiment)
     if len(chosen) < 2:
         raise ValueError(f"Experiment {experiment!r} has {len(chosen)} completed configurations")
-    areas = {(t.area, t.from_date, t.to_date) for t in chosen}
+    areas = {
+        (t.area, t.from_date, t.to_date, json.dumps(t.scenario, sort_keys=True)) for t in chosen
+    }
     if len(areas) != 1:
-        raise ValueError(f"Trials differ in area or period: {sorted(areas)}")
+        raise ValueError(f"Trials differ in area, period or scenario: {sorted(areas)}")
     area = chosen[0].area
 
     def monthly(trial: Trial, name: str) -> pl.DataFrame:
@@ -105,8 +107,11 @@ def load_experiment(
         bench_columns = ["b"] * len(chosen)
     else:
         controls = {c.id: c for c in _completed(session, control)}
-        if {(c.area, c.from_date, c.to_date) for c in controls.values()} != areas:
-            raise ValueError(f"Control {control!r} differs in area or period")
+        if {
+            (c.area, c.from_date, c.to_date, json.dumps(c.scenario, sort_keys=True))
+            for c in controls.values()
+        } != areas:
+            raise ValueError(f"Control {control!r} differs in area, period or scenario")
         matched = match_controls(
             [t.params for t in chosen], {i: c.params for i, c in controls.items()}
         )

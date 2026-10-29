@@ -6,6 +6,9 @@ for T; no method takes a date. Snapshot reads are cached per process, keyed
 by date, so many trials share them (`clear_caches` empties them).
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, timedelta
 from functools import cache, lru_cache
 
@@ -16,6 +19,20 @@ from factor_investor.factors.snapshot import known_metrics, metric_history_all, 
 
 # Universe fields usable in expressions; amounts in the area's currency
 UNIVERSE_FIELDS = frozenset({"market_cap", "turnover", "price", "years_of_history"})
+
+
+# Instruments removed by a stress scenario: [instrument_id, date]; from that
+# date on they are not in any view's universe (see stress/bankruptcy.py)
+_EXCLUDED: ContextVar[pl.DataFrame | None] = ContextVar("excluded_instruments", default=None)
+
+
+@contextmanager
+def excluded_instruments(events: pl.DataFrame) -> Iterator[None]:
+    token = _EXCLUDED.set(events)
+    try:
+        yield
+    finally:
+        _EXCLUDED.reset(token)
 
 
 @lru_cache(maxsize=4096)
@@ -58,6 +75,12 @@ class PointInTimeView:
         """Investable universe on T: [instrument_id, market_cap, turnover, price,
         years_of_history] (eligible, domestic, one listing per company)."""
         universe = investable_universe(self._as_of, self._area)
+        excluded = _EXCLUDED.get()
+        if excluded is not None and not universe.is_empty():
+            gone = excluded.filter(pl.col("date") <= self._as_of)["instrument_id"]
+            universe = universe.filter(
+                ~pl.col("instrument_id").cast(pl.Int32).is_in(gone.implode())
+            )
         if universe.is_empty():
             return pl.DataFrame(
                 schema={"instrument_id": pl.Int32, **dict.fromkeys(UNIVERSE_FIELDS, pl.Float64)}

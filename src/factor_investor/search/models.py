@@ -39,6 +39,7 @@ class Trial(Base):
     to_date: Mapped[date] = mapped_column(Date)
     cost_bps: Mapped[int] = mapped_column(Integer)
     gross: Mapped[bool] = mapped_column(Boolean)
+    scenario: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # data scenario, e.g. bankruptcy
 
     price_filter: Mapped[str] = mapped_column(String(50))
     data_fingerprint: Mapped[dict[str, Any]] = mapped_column(JSONB)

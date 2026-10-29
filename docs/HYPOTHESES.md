@@ -137,6 +137,8 @@ Flerårshistorik i stället för ett års siffror: i Sverige lika bra i snitt me
 
 **Slutsats:** v2 är ingen allmän förbättring. Flerårshistorik hjälper i USA, är oförändrad i Sverige och Norge och sämre i Finland, Danmark och särskilt Europa. Ettårssiffrorna i v1 verkar fånga något verkligt (senaste årets lönsamhet och tillväxt, "fundamental momentum") som femårsmedianer späder ut. Att välja version per marknad vore överanpassning. v1 står kvar som huvudversion; v2 visar att resultatet i Europa delvis kommer från färsk information, inte bara stabil kvalitet.
 
+**Stresstest mot saknade konkurser, förregistrerat 2026-10-29**: `h2_composite_v1` (SE, alla 24) och kontrollen `h0_liquid_equal_weight_v1` under scenariot `bankruptcy` med årlig konkursfrekvens {2 %, 5 %} × slumpfrö {1, 2}, svaga bolag (ROIC ≤ 0 eller okänd, soliditet < 30 %) fyra gånger så utsatta; period 2008–2026. Experiment `h2_stress_bk{2,5}_s{1,2}_se` och `h0_stress_bk{2,5}_s{1,2}_se`. H2 klarar testet om överavkastningen mot kontrollen (samma scenario) i median är kvar på minst hälften av den ostressade (+4,0 %/år).
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

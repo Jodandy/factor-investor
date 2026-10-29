@@ -952,3 +952,15 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Control:** `h0_liquid_equal_weight_v1` (H0): equal weight over investable SE with median turnover ≥ 1 MSEK/day, via `constant_v1` (same score for all). 2008–2026: CAGR 9.73% quarterly, 10.37% semiannual (equal_weight_v1 SE 9.63%): the liquidity filter alone adds little over the full period.
 
 **One component per file** from here on (`components/constant.py`): a strategy's source hash covers every component module it references, so adding a component to a shared module would make logged strategies count as changed. The first four components share modules and stay there.
+
+---
+
+## 2026-10-29 | Bankruptcy stress scenario for missing delisted companies
+
+**Decision:** trials can run under a data scenario (`TrialSpec.scenario`, column `trials.scenario`, part of the config hash; migration 2b61cb2f30d4). The first is `bankruptcy` (`stress/bankruptcy.py`): every month each company in the area's investable universe fails with probability 1 − (1 − rate)^(1/12) on average, weak companies (ROIC ≤ 0 or unknown, or equity ratio < 0.3, from that month's snapshot) `weak_multiplier` times as often. The draw is a hash of (seed, instrument, month), so a company fails on the same date in every run under the scenario, whichever strategy holds it. A failed company's price is 1e-6 of its last price from the next day on (marked as traded, so the price filter confirms the loss) and it leaves every view's universe from its failure date.
+
+**Why:** Börsdata has no delisted companies, so real failures are missing from all backtests. A strategy is robust to this if its edge over its control survives realistic failure rates concentrated in weak companies.
+
+**Trial counts:** stress runs are logged and count as configurations of their hypothesis (conservative for the deflated Sharpe ratio).
+
+**Alternatives considered:** deleting failed companies' later prices (the price filter and stale-price rule would sell them at their last normal price, hiding the loss); failing uniformly at random (real failures concentrate in weak companies); estimating the bias analytically only (no measurement).

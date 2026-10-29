@@ -205,3 +205,22 @@ def test_history_cut_matches_the_dated_query() -> None:
     assert_frame_equal(
         cut.sort("instrument_id", "date"), queried.sort("instrument_id", "date"), check_exact=True
     )
+
+
+def test_failed_instruments_leave_the_universe_from_their_failure_date() -> None:
+    from factor_investor.benchmarks.universe import SWEDEN
+    from factor_investor.pipeline.view import PointInTimeView, excluded_instruments
+
+    clear_caches()
+    first, second = PointInTimeView(date(2016, 6, 30), SWEDEN).universe()["instrument_id"][:2]
+    events = pl.DataFrame(
+        {"instrument_id": [first, second], "date": [date(2016, 6, 30), date(2016, 7, 29)]},
+        schema={"instrument_id": pl.Int32, "date": pl.Date},
+    )
+    with excluded_instruments(events):
+        june = PointInTimeView(date(2016, 6, 30), SWEDEN).universe()["instrument_id"].to_list()
+        july = PointInTimeView(date(2016, 7, 29), SWEDEN).universe()["instrument_id"].to_list()
+    assert first not in june and second in june
+    assert first not in july and second not in july
+    after = PointInTimeView(date(2016, 7, 29), SWEDEN).universe()["instrument_id"].to_list()
+    assert first in after and second in after  # only inside the scenario

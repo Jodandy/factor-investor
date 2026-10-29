@@ -75,6 +75,8 @@ class TrialSpec:
     from_date: date
     to_date: date
     stage: str = "explore"
+    # data scenario, e.g. {"bankruptcy": {"rate": 0.05, "weak_multiplier": 4.0, "seed": 1}}
+    scenario: dict[str, Any] | None = None
 
     def validate(self) -> None:
         from factor_investor.benchmarks.run import AREAS
@@ -95,19 +97,41 @@ class TrialSpec:
             json.dumps(self.params, allow_nan=False)
         except (TypeError, ValueError) as e:
             raise ValueError(f"params must be JSON: {e}") from e
+        if self.scenario is not None:
+            bankruptcy_scenario(self.scenario)
+
+
+def bankruptcy_scenario(scenario: dict[str, Any]) -> Any:
+    """The BankruptcyScenario a trial's scenario describes (the only kind so far)."""
+    from factor_investor.stress.bankruptcy import BankruptcyScenario
+
+    if set(scenario) != {"bankruptcy"}:
+        raise ValueError(f"Unknown scenario {sorted(scenario)}; supported: bankruptcy")
+    values = scenario["bankruptcy"]
+    if not isinstance(values, dict) or set(values) != {"rate", "weak_multiplier", "seed"}:
+        raise ValueError("bankruptcy scenario needs exactly rate, weak_multiplier and seed")
+    if not 0 <= values["rate"] < 1 or values["weak_multiplier"] < 1:
+        raise ValueError(f"Invalid bankruptcy scenario {values}")
+    return BankruptcyScenario(
+        float(values["rate"]), float(values["weak_multiplier"]), int(values["seed"])
+    )
 
 
 def config_hash(spec: TrialSpec) -> str:
-    """Hash of what is run: strategy, parameters, area and period (not the
-    hypothesis, experiment or stage labels)."""
+    """Hash of what is run: strategy, parameters, area, period and data scenario
+    (not the hypothesis, experiment or stage labels). Without a scenario the
+    hash is the same as before scenarios existed."""
+    fields: dict[str, Any] = {
+        "strategy_id": spec.strategy_id,
+        "params": spec.params,
+        "area": spec.area,
+        "from_date": spec.from_date.isoformat(),
+        "to_date": spec.to_date.isoformat(),
+    }
+    if spec.scenario is not None:
+        fields["scenario"] = spec.scenario
     canonical = json.dumps(
-        {
-            "strategy_id": spec.strategy_id,
-            "params": spec.params,
-            "area": spec.area,
-            "from_date": spec.from_date.isoformat(),
-            "to_date": spec.to_date.isoformat(),
-        },
+        fields,
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -237,6 +261,37 @@ def _engine_for(area: str) -> BacktestEngine:
     return _engine(region.currency if isinstance(region, Region) else None)
 
 
+@cache
+def _stressed(
+    scenario_json: str, area: str, from_date: date, to_date: date
+) -> tuple[BacktestEngine, pl.DataFrame]:
+    """Engine on prices with the scenario's failures applied, and the failure
+    events (cached per process and scenario)."""
+    from factor_investor.backtest.prices import (
+        PANEL_PATH,
+        PricePanel,
+        _currency_frames,
+        _is_current,
+        build_price_panel,
+        convert_currency,
+    )
+    from factor_investor.benchmarks.run import AREAS
+    from factor_investor.benchmarks.universe import Region
+    from factor_investor.stress.bankruptcy import apply_failures, scenario_events
+
+    events = scenario_events(
+        bankruptcy_scenario(json.loads(scenario_json)), area, from_date, to_date
+    )
+    if not _is_current(PANEL_PATH):
+        build_price_panel(PANEL_PATH)
+    frame = pl.read_parquet(PANEL_PATH)
+    region = AREAS[area]
+    if isinstance(region, Region):
+        frame = convert_currency(frame, *_currency_frames(), base=region.currency)
+    panel = PricePanel.from_frame(apply_failures(frame, events))
+    return BacktestEngine(prices=panel), events
+
+
 def run_trial(
     spec: TrialSpec,
     *,
@@ -320,6 +375,7 @@ def _run_logged(
         to_date=spec.to_date,
         cost_bps=cost_bps,
         gross=cost_bps == 0,
+        scenario=spec.scenario,
         price_filter=PRICE_FILTER_ID,
         data_fingerprint=data_fingerprint(session),
         code_commit=code.commit,
@@ -330,7 +386,16 @@ def _run_logged(
     logger.info(f"Trial {trial.id}: {spec.strategy_id} {spec.params} ({spec.experiment})")
 
     try:
-        result = (engine or _engine_for(spec.area)).run(strategy, spec.from_date, spec.to_date)
+        if spec.scenario is not None:
+            from factor_investor.pipeline.view import excluded_instruments
+
+            stressed_engine, events = _stressed(
+                json.dumps(spec.scenario, sort_keys=True), spec.area, spec.from_date, spec.to_date
+            )
+            with excluded_instruments(events):
+                result = (engine or stressed_engine).run(strategy, spec.from_date, spec.to_date)
+        else:
+            result = (engine or _engine_for(spec.area)).run(strategy, spec.from_date, spec.to_date)
         returns = result.returns_df.select("date", "portfolio_return")
         final_value = float(result.metadata["final_value"])
 
