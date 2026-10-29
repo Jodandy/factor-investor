@@ -1,0 +1,234 @@
+# H2 in FI: same as h2_composite_v1 except area FI and
+# turnover >= 100,000 EUR a day (about 1 MSEK). Pre-registered 2026-10-29.
+# Never edit after a logged run: create _v2 instead.
+id: h2_composite_fi_v1
+hypothesis: H2
+description: Composite rank on profitability, growth, valuation, balance sheet and shareholder return
+  (HYPOTHESES.md H2, pre-registered 2026-10-29)
+area: FI
+rebalance:
+  search:
+  - quarterly
+  - semiannual
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000
+scoring:
+  min_coverage: 0.75
+  blocks:
+    search:
+      equal:
+      - component: percentile_v1
+        params:
+          metric: roic
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: operating_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: revenue_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: profit_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      quality_heavy:
+      - component: percentile_v1
+        params:
+          metric: roic
+        weight: 0.666667
+      - component: percentile_v1
+        params:
+          metric: operating_margin
+        weight: 0.666667
+      - component: percentile_v1
+        params:
+          metric: fcf_margin
+        weight: 0.666667
+      - component: percentile_v1
+        params:
+          metric: revenue_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: profit_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      value_heavy:
+      - component: percentile_v1
+        params:
+          metric: roic
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: operating_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: revenue_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: profit_growth_1y
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 1.0
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      growth_heavy:
+      - component: percentile_v1
+        params:
+          metric: roic
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: operating_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_margin
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: revenue_growth_1y
+        weight: 1.5
+      - component: percentile_v1
+        params:
+          metric: profit_growth_1y
+        weight: 1.5
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n:
+      search:
+      - 15
+      - 25
+      - 40
+    sell_rank: 1.5

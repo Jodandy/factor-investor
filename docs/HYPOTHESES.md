@@ -84,6 +84,8 @@ Parameterrum (24): viktuppsättning {lika (alla 1), kvalitetstung (lönsamhet oc
 
 **Status:** inte falsifierad. Kriteriet ("ingen viktuppsättning slår benchmark out-of-sample, eller bara en") uppfylls inte: alla fyra slår kontrollen, i nästan alla perioder. Reservationer: Börsdata saknar avnoterade bolag (överskattar troligen), få likvida bolag tidigt (67 år 2009), engångsintäkter i v1, inga nya data sedan hypotesen formulerades. Nästa steg: variantaxlarna (hårda minimikrav, hysteres), robusthet mot avnoteringar, och framåtriktad pappershandel innan något används på riktigt.
 
+**Andra marknader, förregistrerat 2026-10-29**: samma regler och parameterrum (24) i Norge, Finland, Danmark och Europa (Stoxx 600-likt, i EUR): `h2_composite_{no,fi,dk,eu}_v1`, var och en mot sin kontroll `h0_liquid_equal_weight_{no,fi,dk,eu}_v1` (likavikt över samma likvida universum). Omsättningsgolv ungefär 1 MSEK/dag: 1 MNOK, 100 kEUR, 0,7 MDKK, 100 kEUR. Alla körningar räknas i H2:s antal försök. Bekräftas om flertalet marknader visar samma mönster som Sverige (de flesta konfigurationer slår kontrollen i de flesta perioder); i de nordiska grannländerna är universumet litet tidigt (10–20 bolag 2009), så urvalet betyder mest under senare år.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

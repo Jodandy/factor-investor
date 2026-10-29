@@ -1,0 +1,25 @@
+# H0 control for H2 in NO: same as h0_liquid_equal_weight_v1 except area NO and
+# turnover >= 1,000,000 NOK a day (about 1 MSEK). Pre-registered 2026-10-29.
+# Never edit after a logged run: create _v2 instead.
+id: h0_liquid_equal_weight_no_v1
+hypothesis: H0
+description: Equal weight, investable NO with turnover >= 1 MNOK/day (control for H2's liquidity filter)
+area: 'NO'
+rebalance:
+  search:
+  - quarterly
+  - semiannual
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0
