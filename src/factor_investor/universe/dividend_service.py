@@ -27,6 +27,63 @@ MAX_DIVIDEND_YIELD = Decimal("0.15")
 
 IMPLAUSIBLE_DIVIDENDS_REPORT = Path("data/logs/implausible_dividends.csv")
 
+# A report's dividend is matched to calendar ex-dates up to the next annual
+# report, but never more than this long after its own publication.
+MAX_DIVIDEND_WINDOW_DAYS = 400
+
+
+@dataclass(frozen=True)
+class ReportDividend:
+    """Dividend per share from an annual report, adjusted like the prices."""
+
+    known_from: date
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class CalendarDividend:
+    """Dividend calendar row: real ex-date, amount as paid (not split-adjusted)."""
+
+    ex_date: date
+    amount_paid: Decimal
+
+
+def assign_ex_dates(
+    reports: list[ReportDividend], calendar: list[CalendarDividend], fallback_lag_days: int
+) -> list[tuple[date, Decimal, bool]]:
+    """Place one instrument's report dividends on their real ex-dates.
+
+    Each report's amount goes to the calendar ex-dates on or after its
+    known_from and before the next report's known_from (at most
+    MAX_DIVIDEND_WINDOW_DAYS later), split in proportion to the calendar
+    amounts. Calendar amounts are only used as proportions because they are
+    not adjusted for later splits. A report without calendar ex-dates in its
+    window falls back to known_from + fallback_lag_days.
+
+    Returns (ex_date, amount, is_estimated) sorted by date, one per date.
+    """
+    reports = sorted(reports, key=lambda r: r.known_from)
+    paid = sorted((c for c in calendar if c.amount_paid > 0), key=lambda c: c.ex_date)
+    by_date: dict[date, tuple[Decimal, bool]] = {}
+
+    def add(ex_date: date, amount: Decimal, estimated: bool) -> None:
+        previous, previous_estimated = by_date.get(ex_date, (Decimal(0), True))
+        by_date[ex_date] = (previous + amount, previous_estimated and estimated)
+
+    for i, rep in enumerate(reports):
+        end = rep.known_from + timedelta(days=MAX_DIVIDEND_WINDOW_DAYS)
+        if i + 1 < len(reports):
+            end = min(end, reports[i + 1].known_from)
+        window = [c for c in paid if rep.known_from <= c.ex_date < end]
+        if not window:
+            add(rep.known_from + timedelta(days=fallback_lag_days), rep.amount, True)
+            continue
+        total_paid = sum((c.amount_paid for c in window), Decimal(0))
+        for c in window:
+            add(c.ex_date, rep.amount * c.amount_paid / total_paid, False)
+
+    return [(d, amount, estimated) for d, (amount, estimated) in sorted(by_date.items())]
+
 
 def _dividends_on_trading_days(
     trading_days: list[date], dividends: list[tuple[date, Decimal]]
@@ -148,13 +205,15 @@ class DividendService:
         return known_from + timedelta(days=self.estimation_lag_days)
 
     def extract_dividends_from_reports(self) -> int:
-        """Extract dividends from annual reports and estimate ex-dates.
+        """Extract dividends from annual reports and place them on ex-dates.
 
-        Replaces all previously estimated dividends (source 'report_estimated')
-        so the extraction is idempotent and picks up rule changes.
+        Ex-dates come from the dividend calendar where it has entries after
+        the report's publication (source 'report_calendar'); otherwise they
+        are estimated as known_from + estimation_lag_days ('report_estimated').
+        Amounts always come from the reports (see assign_ex_dates).
 
-        Known limitation: one dividend per fiscal year at the estimated date,
-        so companies paying quarterly get their year's dividends lumped.
+        Replaces all previously extracted dividends so the extraction is
+        idempotent and picks up rule changes.
 
         Returns:
             Number of dividends extracted and inserted
@@ -162,7 +221,16 @@ class DividendService:
         logger.info("Extracting dividends from reports...")
 
         with get_session() as session:
-            session.execute(delete(Dividend).where(Dividend.source == "report_estimated"))
+            session.execute(
+                delete(Dividend).where(Dividend.source.in_(["report_estimated", "report_calendar"]))
+            )
+
+            calendar: dict[int, list[CalendarDividend]] = {}
+            for ins_id, ex_date, amount_paid in session.execute(
+                text("SELECT ins_id, ex_date, amount_paid FROM dividend_calendar WHERE amount_paid > 0")
+            ):
+                calendar.setdefault(ins_id, []).append(CalendarDividend(ex_date, amount_paid))
+            logger.info(f"Loaded dividend calendar for {len(calendar):,} instruments")
 
             # Get annual dividends from reports
             query = text("""
@@ -181,23 +249,33 @@ class DividendService:
             result = session.execute(query)
             rows = result.fetchall()
 
-            dividends = []
-            for row in rows:
-                ins_id, period_end, report_date, div_amount, currency = row
-
-                ex_date = self.estimate_ex_date(report_date, period_end)
-
-                dividends.append(
-                    {
-                        "instrument_id": ins_id,
-                        "ex_date": ex_date,
-                        "payment_date": None,
-                        "amount": Decimal(str(div_amount)),
-                        "currency": currency,
-                        "is_estimated_ex_date": True,
-                        "source": "report_estimated",
-                    }
+            reports: dict[int, list[ReportDividend]] = {}
+            currencies: dict[int, str | None] = {}
+            for ins_id, period_end, report_date, div_amount, currency in rows:
+                known_from, _ = self.pit_service.calculate_known_from(report_date, period_end, "year")
+                reports.setdefault(ins_id, []).append(
+                    ReportDividend(known_from, Decimal(str(div_amount)))
                 )
+                currencies[ins_id] = currency
+
+            dividends = []
+            for ins_id, instrument_reports in reports.items():
+                for ex_date, amount, estimated in assign_ex_dates(
+                    instrument_reports, calendar.get(ins_id, []), self.estimation_lag_days
+                ):
+                    dividends.append(
+                        {
+                            "instrument_id": ins_id,
+                            "ex_date": ex_date,
+                            "payment_date": None,
+                            "amount": amount,
+                            "currency": currencies[ins_id],
+                            "is_estimated_ex_date": estimated,
+                            "source": "report_estimated" if estimated else "report_calendar",
+                        }
+                    )
+            on_calendar = sum(not d["is_estimated_ex_date"] for d in dividends)
+            logger.info(f"Dividends on calendar ex-dates: {on_calendar:,} of {len(dividends):,}")
 
             if dividends:
                 count = len(dividends)
