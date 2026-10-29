@@ -115,7 +115,7 @@ FULL = pipeline(
         {"component": "percentile_v1", "params": {"metric": "roic"}, "weight": 2},
         {
             "component": "percentile_v1",
-            "params": {"metric": "ev_ebit", "higher_is_better": False, "positive_only": True},
+            "params": {"metric": "ev_ebit", "higher_is_better": False, "non_positive_is_worst": True},
             "weight": 1,
         },
         {

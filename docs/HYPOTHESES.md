@@ -62,6 +62,19 @@ Ingen selektion. Finns för att kalibrera motorn och ge baslinjen som allt annat
 
 **Falsifieras om**: ingen viktuppsättning slår benchmark out-of-sample, eller om resultatet bara håller för en enskild viktuppsättning.
 
+**Förregistrering v1 (2026-10-29)**: `config/strategies/h2_composite_v1.yaml`, område SE, 2008-01-01–2026-10-27, 10 bps, minsta omsättning 1 MSEK/dag (median 60 dagar). Dimensionernas vikt delas lika på dess mått (percentil i universum efter filtret); ett bolag rankas bara om minst 75 % av vikten har data:
+- lönsamhet: ROIC, rörelsemarginal, FCF-marginal
+- tillväxt: omsättningstillväxt 1 år, vinsttillväxt 1 år
+- värdering: EV/EBIT (lågt), FCF-yield (högt), P/E mot egna 5 år (lågt); negativt EV/EBIT eller P/E (förlust) ger sämsta värde
+- balansräkning: soliditet, kassalikviditet (current ratio)
+- aktieägaravkastning: direktavkastning
+
+Avvikelser från idén ovan, eftersom måtten saknas i basdatan: ingen flerårs-CAGR eller tillväxtkonsistens, nettoskuld/EBIT ersatt av current ratio (tvetydigt tecken), ingen utdelningstillväxt eller utspädning.
+
+Parameterrum (24): viktuppsättning {lika (alla 1), kvalitetstung (lönsamhet och balansräkning 2), värderingstung (värdering 3), tillväxttung (tillväxt 3)} × antal positioner {15, 25, 40} × rebalansering {kvartal, halvår}. Fast: rank-hysteres 1,5N, ren ranking utan hårda minimikrav (de axlarna kan bli egna experiment).
+
+**Känd svaghet i v1**: engångsintäkter (t.ex. licensintäkter i bioteknikbolag) ger extrema marginaler och låga P/E på ett enda års siffror.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

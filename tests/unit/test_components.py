@@ -96,13 +96,17 @@ def test_percentile_scores_within_the_instruments() -> None:
     assert lower[2] == 0.875
 
 
-def test_percentile_positive_only_and_missing_values() -> None:
+def test_percentile_non_positive_is_worst_and_missing_values() -> None:
+    """A negative P/E is a loss: the worst valuation, not an unknown one (an
+    unknown block is left out of the composite, which would favour losses)."""
     component = build_component(
-        "percentile_v1", {"metric": "pe_ratio", "higher_is_better": False, "positive_only": True}
+        "percentile_v1",
+        {"metric": "pe_ratio", "higher_is_better": False, "non_positive_is_worst": True},
     )
     result = scores(component.run(VIEW, ids(1, 2, 3, 4, 5)))
-    assert result[4] is None and result[5] is None
-    assert result[1] > result[3] > result[2]
+    assert result[4] == 0.0
+    assert result[5] is None  # no value at all: unknown
+    assert result[1] > result[3] > result[2] > 0
 
 
 def test_own_history_percentile() -> None:
@@ -181,3 +185,28 @@ def test_component_ids_must_be_versioned_and_unique() -> None:
             id = "expression_v1"
 
     assert {"expression_v1", "percentile_v1", "own_history_percentile_v1"} <= set(COMPONENTS)
+
+
+def test_own_history_non_positive_is_worst() -> None:
+    """A negative P/E is a loss, not cheap: the worst score."""
+    d = [date(2023, m, 28) for m in range(1, 13)]
+    view = FakeView(
+        {"pe_ratio": {1: -4.0, 2: 10.0}},
+        history={
+            "pe_ratio": [(1, x, 15.0) for x in d]
+            + [(2, x, 15.0) for x in d[:6]]
+            + [(2, x, -3.0) for x in d[6:]]
+        },
+    )
+    component = build_component(
+        "own_history_percentile_v1",
+        {
+            "metric": "pe_ratio",
+            "higher_is_better": False,
+            "non_positive_is_worst": True,
+            "min_observations": 6,
+        },
+    )
+    result = scores(component.run(view, ids(1, 2)))
+    assert result[1] == 0.0  # current value is a loss
+    assert result[2] == 1.0  # compared with its six positive earlier values only
