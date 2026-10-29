@@ -14,8 +14,13 @@ class UniverseConfig(BaseModel):
     Strategies apply their own selection criteria at backtest time.
     """
 
-    # Data quality filter (minimal)
-    min_price: float = 5.0  # Filter out pennystocks (< 5 in local currency)
+    # Opt-in minimum price (local currency). Off by default: prices are
+    # split-adjusted, so a threshold excludes stocks based on later splits.
+    min_price: float | None = None
+
+    # Instrument names with these endings are excluded: Swedish property
+    # companies' D shares are preference-like (capped upside)
+    exclude_name_suffixes: list[str] = Field(default_factory=lambda: [" D"])
 
     # Snapshot price: last close on or before the snapshot date, at most this
     # many calendar days old (weekends, holidays)

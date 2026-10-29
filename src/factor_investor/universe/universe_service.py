@@ -133,7 +133,7 @@ class UniverseService:
         instruments_query = text("""
             SELECT DISTINCT ON (i.ins_id)
                 i.ins_id, i.stock_price_currency, i.country_id, i.market_id,
-                i.sector_id, i.listing_date, s.close AS price
+                i.sector_id, i.listing_date, i.name, s.close AS price
             FROM stock_prices s
             JOIN instruments i ON i.ins_id = s.ins_id
             WHERE s.date <= :as_of_date
@@ -204,7 +204,7 @@ class UniverseService:
             exclusion_reason = None
 
             # Only exclude extreme data quality issues
-            exclusion_reason = self._exclusion_reason(ins.country_id, price)
+            exclusion_reason = self._exclusion_reason(ins.country_id, price, ins.name)
             if exclusion_reason:
                 is_eligible = False
 
@@ -261,11 +261,16 @@ class UniverseService:
 
         return (eligible_count, excluded_count, exclusion_breakdown)
 
-    def _exclusion_reason(self, country_id: int, price: Decimal | None) -> str | None:
+    def _exclusion_reason(
+        self, country_id: int, price: Decimal | None, name: str | None
+    ) -> str | None:
         """Reason an instrument is not eligible, or None if eligible."""
         if country_id in self.config.exclude_country_ids:
             return "excluded_country"
-        if price and price < Decimal(str(self.config.min_price)):
+        if name and name.endswith(tuple(self.config.exclude_name_suffixes)):
+            return "d_share"
+        min_price = self.config.min_price
+        if min_price is not None and price and price < Decimal(str(min_price)):
             return f"price_too_low_{price}"
         return None
 

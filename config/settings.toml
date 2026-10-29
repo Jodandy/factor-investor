@@ -30,8 +30,12 @@ price_only_types = [2, 4, 5, 6, 11, 13]  # indices and FX: benchmarks, never eli
 # NO geographic filters, NO market cap cutoffs, NO liquidity requirements
 # Strategies apply their own selection criteria at backtest time
 
-# Data quality filters (minimal - exclude pennystocks and trash data)
-min_price = 5.0  # Filter out pennystocks (< 5 in local currency)
+# No minimum price: prices are split-adjusted, so a threshold would exclude
+# stocks based on splits made later (DECISIONS 2026-10-29). Set min_price here
+# only to opt in.
+
+# Preference-like share classes (Swedish property companies' D shares)
+exclude_name_suffixes = [" D"]
 
 # Snapshot price = last close on or before the snapshot date, at most this many
 # calendar days old (covers weekends and holidays such as Nordic Dec 31)

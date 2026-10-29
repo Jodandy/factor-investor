@@ -792,3 +792,15 @@ Benchmarks are not strategy trials: they are not selected by a search, so they a
 **Amendment 2026-10-29 (user):** a market means its domestic companies: ISIN country code equal to the market code, in addition to country and trading currency. Foreign companies' local listings (Nokia, AstraZeneca, ABB in Stockholm) carry the whole company's market cap; at the end of 2008 they were 9 names but 37% of the Swedish universe's market cap, and Nokia alone cost about 7 points against OMX Stockholm GI in 2009. With the rule: CAGR 9.91% vs 10.05% for the index (was 9.61%), tracking error 3.4% (was 4.2%). Applies to benchmarks only; strategies choose their own universe. No benchmark run had been logged, so `_v1` is amended rather than versioned.
 
 **Alternatives considered:** a vectorized benchmark separate from the engine (two implementations of execution and costs to keep in sync; the engine is instead checked against a closed form); capping in the engine via `max_position_weight` (caps once and renormalizes, so names can end up above the cap).
+
+---
+
+## 2026-10-29 | No minimum price in the universe; D shares excluded
+
+**Finding:** `min_price = 5` was applied to split-adjusted prices, so whether a stock was eligible depended on splits made later. At the end of 2008, 47 Swedish stocks were ineligible for "price too low", including Hexagon (4.75 SEK adjusted, about 60 SEK actual).
+
+**Decision (user):** `min_price` is opt-in (`UniverseConfig.min_price = None` by default, unset in `settings.toml`), as planned in ARCHITECTURE §10.5; strategies that want a price filter apply their own. Names ending in " D" are excluded with reason `d_share` (`exclude_name_suffixes`): Swedish property companies' D shares (Corem, Fastpartner, Intea, Sagax, Samhällsbyggnadsbolaget) are preference-like with capped upside, and Börsdata types them as ordinary or second-class shares (0 or 3), so the type filter misses them. No other names end in " D" in any country (checked 2026-10-29).
+
+**Consequence:** junk placeholder prices (e.g. 0.0002 followed by a jump back) that the price threshold happened to exclude are now eligible; read-time glitch handling (DECISIONS "Price glitches") becomes necessary before equal-weighted results are trusted. Takes effect at the next `build-universe`.
+
+**Alternatives considered:** a threshold on unadjusted prices (not available: Börsdata gives only adjusted prices and one year of splits); keeping 5 SEK (biased by later splits).
