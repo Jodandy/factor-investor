@@ -789,4 +789,6 @@ Benchmarks are not strategy trials: they are not selected by a search, so they a
 
 **Known limitations:** single-country only until a daily FX series is used; D shares are still in the universe until the planned universe rule; instrument country and currency are current metadata, not point-in-time.
 
+**Amendment 2026-10-29 (user):** a market means its domestic companies: ISIN country code equal to the market code, in addition to country and trading currency. Foreign companies' local listings (Nokia, AstraZeneca, ABB in Stockholm) carry the whole company's market cap; at the end of 2008 they were 9 names but 37% of the Swedish universe's market cap, and Nokia alone cost about 7 points against OMX Stockholm GI in 2009. With the rule: CAGR 9.91% vs 10.05% for the index (was 9.61%), tracking error 3.4% (was 4.2%). Applies to benchmarks only; strategies choose their own universe. No benchmark run had been logged, so `_v1` is amended rather than versioned.
+
 **Alternatives considered:** a vectorized benchmark separate from the engine (two implementations of execution and costs to keep in sync; the engine is instead checked against a closed form); capping in the engine via `max_position_weight` (caps once and renormalizes, so names can end up above the cap).

@@ -90,3 +90,15 @@ def test_truncation_is_real() -> None:
         later = queries.get_universe(date(2026, 9, 30), is_eligible=True)
     assert later.is_empty()
     assert not queries.get_universe(date(2026, 9, 30), is_eligible=True).is_empty()
+
+
+@pytest.mark.integrity
+@pytest.mark.integration
+def test_country_universe_holds_only_domestic_companies() -> None:
+    """Nokia (ins_id 249), AstraZeneca and ABB trade in Stockholm in SEK but are
+    foreign companies; only SE ISINs belong in the Swedish universe."""
+    universe = investable_universe(T, SWEDEN)
+    isin_country = benchmarks._instrument_markets().select("instrument_id", "isin_country")
+    countries = universe.join(isin_country, on="instrument_id")["isin_country"].unique().to_list()
+    assert countries == ["SE"]
+    assert 249 not in investable_universe(date(2008, 12, 31), SWEDEN)["instrument_id"].to_list()

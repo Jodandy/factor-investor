@@ -11,8 +11,9 @@ strategies, so they get the same T+1 execution and costs:
 - `random_pick_v1`: k random investable names, equal weight, seeded.
 
 The investable universe on date T is the eligible universe snapshot for T,
-restricted to one country and trading currency (prices are not converted),
-with one listing per company (`dedupe_listings_v1`). Everything is read from
+restricted to one country's domestic companies (listed there, trading in its
+currency, with its ISIN country code; prices are not converted), with one
+listing per company (`dedupe_listings_v1`). Everything is read from
 snapshots dated T or earlier.
 
 Benchmarks are not strategy trials: they are not selected by a search, so
@@ -46,7 +47,10 @@ WEIGHTINGS = {"equal": "equal_weight_v1", "cap": "cap_weight_v1", "random": "ran
 
 @dataclass(frozen=True)
 class Market:
-    """One country's listings trading in one currency."""
+    """One country's domestic companies: listings in that country, trading in
+    its currency, with an ISIN from that country. Foreign companies' local
+    listings (Nokia, AstraZeneca and ABB in Stockholm) are left out: their
+    market cap is the whole company's, so they would dominate the weights."""
 
     code: str
     country_id: int
@@ -60,24 +64,33 @@ SWEDEN = Market("SE", 1, "SEK")
 def _instrument_markets() -> pl.DataFrame:
     with get_session() as session:
         rows = session.execute(
-            text("SELECT ins_id, country_id, stock_price_currency FROM instruments")
+            text("SELECT ins_id, country_id, stock_price_currency, left(isin, 2) FROM instruments")
         ).all()
     return pl.DataFrame(
         rows,
-        schema={"instrument_id": pl.Int32, "country_id": pl.Int64, "currency": pl.Utf8},
+        schema={
+            "instrument_id": pl.Int32,
+            "country_id": pl.Int64,
+            "currency": pl.Utf8,
+            "isin_country": pl.Utf8,
+        },
         orient="row",
     )
 
 
 def investable_universe(as_of_date: date, market: Market) -> pl.DataFrame:
-    """Eligible names in `market` on as_of_date, one listing per company."""
+    """Eligible domestic names in `market` on as_of_date, one listing per company."""
     eligible = get_universe(as_of_date, is_eligible=True)
     if eligible.is_empty():
         return eligible
     in_market = eligible.with_columns(pl.col("instrument_id").cast(pl.Int32)).join(
-        _instrument_markets().filter(
-            (pl.col("country_id") == market.country_id) & (pl.col("currency") == market.currency)
-        ),
+        _instrument_markets()
+        .filter(
+            (pl.col("country_id") == market.country_id)
+            & (pl.col("currency") == market.currency)
+            & (pl.col("isin_country") == market.code)
+        )
+        .drop("isin_country"),
         on="instrument_id",
     )
     return dedupe_listings_v1(in_market, as_of_date).sort("instrument_id")
