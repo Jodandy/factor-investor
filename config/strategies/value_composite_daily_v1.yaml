@@ -1,0 +1,85 @@
+# H7 value composite with the daily clock (ablation), pre-registered 2026-10-30: equal-weight
+# percentiles of EV/EBIT, P/E, P/B, P/S (low; loss or negative book value worst), FCF yield and
+# dividend yield (high); turnover >= 1 MSEK a day, top 25, quarterly, sell outside rank 1.5N; plus:
+#   timing: none / price above its 200-day mean / 50-day breakout (new positions wait for it)
+#   exits: none / trailing stop 20% / 30% below the high since entry (checked daily)
+#   sell_on_rank: true / false (only exits sell)
+# 3 x 3 x 2 = 18 configurations; none, none, true is the plain strategy.
+# Never edit after a logged run: create _v2 instead.
+id: value_composite_daily_v1
+hypothesis: H7
+description: Value composite (EV/EBIT, P/E, P/B, P/S, FCF yield, dividend yield), top 25, quarterly, with
+  daily timing and exits (ablation)
+area: SE
+rebalance: quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  min_coverage: 0.75
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pe_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pb_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: ps_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: fcf_yield
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: dividend_yield
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 25
+    sell_rank: 1.5
+timing:
+  search:
+    none: []
+    ma200:
+    - component: price_above_ma_v1
+      params:
+        days: 200
+    breakout50:
+    - component: breakout_v1
+      params:
+        days: 50
+exits:
+  search:
+    none: []
+    stop20:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.2
+    stop30:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.3
+sell_on_rank:
+  search:
+  - true
+  - false

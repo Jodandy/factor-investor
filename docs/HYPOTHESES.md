@@ -252,6 +252,18 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 ---
 
+## H7 — Värdekomposit
+
+**Idé**: Ranka på flera värderingsmått samtidigt i stället för ett (som H5:s P/E): ett bolag som är billigt på många mått är mer sannolikt verkligt billigt.
+
+**Motivering**: Sammansatta värdemått (O'Shaughnessy) har historiskt varit stabilare än enskilda mått; ett enskilt mått kan vara missvisande av redovisningsskäl.
+
+**Förregistrering 2026-10-30**: `config/strategies/value_composite_daily_v1.yaml`, SE 2008–2026. Lika vikt på percentiler av EV/EBIT, P/E, P/B, P/S (lågt; förlust eller negativt eget kapital sämst), FCF-yield och direktavkastning (högt); data för minst 75 % av vikten. Omsättning ≥ 1 MSEK/dag, topp 25, kvartalsvis, sälj utanför rank 1,5N. Samma 18 överlägg som för H2 (timing × exit × sälj på rank); ingen timing, ingen exit och sälj på rank är vanlig värdekomposit. Kontroll `h0_liquid_equal_weight_se` (kvartal).
+
+**Falsifieras om**: den vanliga värdekompositen inte slår kontrollen, eller bara i enstaka tidsblock.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.
