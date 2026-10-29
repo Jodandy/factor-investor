@@ -1,11 +1,17 @@
 """Query functions for universe and total returns data."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 
 import polars as pl
 from sqlalchemy import text
 
 from factor_investor.db import get_session
+
+
+def _to_float(value: Decimal | float | None) -> float | None:
+    """Numeric column to float; zero stays zero (not None)."""
+    return None if value is None else float(value)
 
 
 def get_universe(
@@ -64,10 +70,10 @@ def get_universe(
             {
                 "instrument_id": [row[1] for row in rows],
                 "date": [row[2] for row in rows],
-                "market_cap_local": [float(row[3]) if row[3] else None for row in rows],
-                "median_turnover_60d": [float(row[4]) if row[4] else None for row in rows],
-                "price": [float(row[5]) if row[5] else None for row in rows],
-                "years_of_history": [float(row[6]) if row[6] else None for row in rows],
+                "market_cap_local": [_to_float(row[3]) for row in rows],
+                "median_turnover_60d": [_to_float(row[4]) for row in rows],
+                "price": [_to_float(row[5]) for row in rows],
+                "years_of_history": [_to_float(row[6]) for row in rows],
                 "is_eligible": [row[7] for row in rows],
                 "exclusion_reason": [row[8] for row in rows],
                 "liquidity_bucket": [row[9] for row in rows],
@@ -188,7 +194,7 @@ def get_total_returns(
                 "instrument_id": [row[0] for row in rows],
                 "date": [row[1] for row in rows],
                 "close_price": [float(row[2]) if row[2] else None for row in rows],
-                "total_return_index": [float(row[3]) if row[3] else None for row in rows],
-                "dividend_on_date": [float(row[4]) if row[4] else None for row in rows],
+                "total_return_index": [_to_float(row[3]) for row in rows],
+                "dividend_on_date": [_to_float(row[4]) for row in rows],
             }
         )

@@ -43,6 +43,10 @@ from factor_investor.universe.queries import get_universe
 MAX_WEIGHT = 0.10
 SHARE_JUMP = 10.0  # implied share count vs its trailing median
 SHARE_HISTORY_DAYS = 370  # ~12 monthly snapshots, about four quarterly reports
+# Market caps above this are data errors (reverse splits applied to prices but
+# not to share counts give values up to 4.5e18 USD); the largest company ever
+# was worth about 5e12 USD.
+MAX_MARKET_CAP_USD = 1e13
 
 WEIGHTS_SCHEMA = {"instrument_id": pl.Int32, "weight": pl.Float64}
 
@@ -210,11 +214,17 @@ def cap_at(weights: pl.DataFrame, max_weight: float) -> pl.DataFrame:
     return weights.with_columns(pl.Series("weight", w, dtype=pl.Float64))
 
 
-def cap_weights(universe: pl.DataFrame, median_shares: pl.DataFrame) -> pl.DataFrame:
+def cap_weights(
+    universe: pl.DataFrame, median_shares: pl.DataFrame, max_market_cap: float | None = None
+) -> pl.DataFrame:
     """cap_weight_v1 weights from snapshot rows and trailing median share counts.
 
     Drops names whose market cap is missing, smaller than one day's median
-    turnover (impossible, so a data error), or whose implied share count is
+    turnover (impossible, so a data error), whose median turnover is zero (not
+    investable; also catches reverse splits applied to prices but not to share
+    counts, which inflate market cap by many orders of magnitude), whose market
+    cap in the base currency is above `max_market_cap`, or whose implied share
+    count is
     more than SHARE_JUMP times away from its trailing median (a report with a
     share count in the wrong unit). Names without history are kept.
     """
@@ -226,7 +236,10 @@ def cap_weights(universe: pl.DataFrame, median_shares: pl.DataFrame) -> pl.DataF
             & (pl.col("price") > 0)
             & (
                 pl.col("median_turnover_60d").is_null()
-                | (pl.col("median_turnover_60d") <= pl.col("market_cap_local"))
+                | (
+                    (pl.col("median_turnover_60d") > 0)
+                    & (pl.col("median_turnover_60d") <= pl.col("market_cap_local"))
+                )
             )
         )
         .with_columns((pl.col("market_cap_local") / pl.col("price")).alias("shares"))
@@ -240,6 +253,8 @@ def cap_weights(universe: pl.DataFrame, median_shares: pl.DataFrame) -> pl.DataF
     )
     # Market caps in one currency (to_base is 1 within a single market)
     cap = pl.col("market_cap_local") * (pl.col("to_base") if "to_base" in rows.columns else 1.0)
+    if max_market_cap is not None:
+        rows = rows.filter(cap <= max_market_cap)
     weights = rows.select("instrument_id", (cap / cap.sum()).cast(pl.Float64).alias("weight"))
     return cap_at(weights, MAX_WEIGHT)
 
@@ -311,7 +326,9 @@ class MarketBenchmark(Strategy):
             weights = equal_weights(universe)
         elif self.weighting == "cap":
             ids = universe["instrument_id"].to_list()
-            weights = cap_weights(universe, trailing_median_shares(as_of_date, ids))
+            per_usd = usd_rates(as_of_date).get(self.market.currency)
+            ceiling = MAX_MARKET_CAP_USD * per_usd if per_usd is not None else None
+            weights = cap_weights(universe, trailing_median_shares(as_of_date, ids), ceiling)
         else:
             assert self.k is not None and self.seed is not None
             weights = random_pick(universe, self.k, self.seed, as_of_date)

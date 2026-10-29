@@ -36,51 +36,65 @@ SOURCE_KEY = "factor_investor.source"
 
 PRICE_SCHEMA = {"instrument_id": pl.Int32, "price": pl.Float64}
 
-# price_filter_v1: a move beyond MOVE_BAND (up or down) from the last accepted
+# price_filter_v2: a move beyond MOVE_BAND (up or down) from the last accepted
 # price is withheld until the instrument has traded outside the band on
-# CONFIRM_DAYS days, or has been quoted outside it MAX_WAIT_DAYS times.
-PRICE_FILTER_ID = "price_filter_v1"
+# CONFIRM_DAYS days, or has been quoted outside it MAX_WAIT_DAYS times. A
+# confirmed rise beyond SPLIT_BAND is treated as a reverse split missing from
+# the price adjustment and scaled away. (v1, never used in a logged run, had
+# no split rule.)
+PRICE_FILTER_ID = "price_filter_v2"
 MOVE_BAND = 3.0
 CONFIRM_DAYS = 5
 MAX_WAIT_DAYS = 20
+SPLIT_BAND = 10.0
 
 
 @njit(cache=True)
-def _accepted(
+def _filter_prices(
     instrument_ids: np.ndarray,
     prices: np.ndarray,
     traded: np.ndarray,
     band: float,
     confirm_days: int,
     max_wait_days: int,
-) -> np.ndarray:
-    """Per row (sorted by instrument, date): is the price accepted?
+    split_band: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per row (sorted by instrument, date): is the price accepted, and the
+    accepted price (rescaled after confirmed rises beyond split_band).
 
     Each decision uses only the instrument's own earlier prices.
     """
     accepted = np.zeros(len(prices), dtype=np.bool_)
+    adjusted = prices.copy()
     reference = 0.0
+    scale = 1.0
     traded_outside = 0
     quoted_outside = 0
     for i in range(len(prices)):
         if i == 0 or instrument_ids[i] != instrument_ids[i - 1]:
             accepted[i] = True
             reference = prices[i]
+            scale = 1.0
             traded_outside = 0
             quoted_outside = 0
             continue
-        ratio = prices[i] / reference
+        price = prices[i] * scale
+        ratio = price / reference
         if not 1.0 / band <= ratio <= band:
             quoted_outside += 1
             if traded[i]:
                 traded_outside += 1
             if traded_outside < confirm_days and quoted_outside < max_wait_days:
                 continue
+            if ratio > split_band:
+                scale *= reference / price
+                price = reference
         accepted[i] = True
-        reference = prices[i]
+        adjusted[i] = price
+        reference = price
         traded_outside = 0
         quoted_outside = 0
-    return accepted
+    return accepted, adjusted
 
 
 def confirm_extreme_moves(
@@ -88,6 +102,7 @@ def confirm_extreme_moves(
     band: float = MOVE_BAND,
     confirm_days: int = CONFIRM_DAYS,
     max_wait_days: int = MAX_WAIT_DAYS,
+    split_band: float = SPLIT_BAND,
 ) -> pl.DataFrame:
     """Drop prices that moved beyond `band` from the last accepted price.
 
@@ -96,6 +111,11 @@ def confirm_extreme_moves(
     confirm a bad print. It is used after `max_wait_days` quotes outside the
     band in any case, so an illiquid stock that really crashed is not held at
     its old price. A spike that comes back inside the band is never used.
+
+    A confirmed rise beyond `split_band` is a reverse split missing from the
+    price adjustment (Atos 2025-04-30, x10,217): from then on the series is
+    scaled so the move disappears and the position keeps its value. Falls are
+    never rescaled, so data errors can only lower returns.
 
     The decision for a day depends only on prices up to that day, so no later
     data leaks into the backtest. Withheld days look like days without trading
@@ -107,15 +127,16 @@ def confirm_extreme_moves(
         if "volume" in prices.columns
         else np.ones(prices.height, dtype=np.bool_)
     )
-    keep = _accepted(
+    keep, adjusted = _filter_prices(
         prices["instrument_id"].to_numpy(),
         prices["price"].to_numpy(),
         traded,
         band,
         confirm_days,
         max_wait_days,
+        split_band,
     )
-    return prices.filter(pl.Series(keep))
+    return prices.with_columns(pl.Series("price", adjusted)).filter(pl.Series(keep))
 
 
 FX_MAX_AGE_DAYS = 7

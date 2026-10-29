@@ -6,6 +6,12 @@ later prices to decide that an earlier one was wrong either. So a move beyond
 the band is withheld (the instrument has no price) until the new level has
 held for CONFIRM_DAYS days with trades, or MAX_WAIT_DAYS prices in all; a
 spike that reverses is never used.
+
+A confirmed rise above SPLIT_BAND is a reverse split missing from the price
+adjustment (Atos 2025-04-30: x10,217, its 1:10,000 reverse split): the series
+continues from the new level scaled back to the old one, so the position keeps
+its value. Falls are never rescaled (real losses, or fake losses from missing
+forward splits), so errors can only lower returns.
 """
 
 from datetime import date, timedelta
@@ -18,6 +24,8 @@ from factor_investor.backtest.prices import (
     CONFIRM_DAYS,
     MAX_WAIT_DAYS,
     MOVE_BAND,
+    PRICE_FILTER_ID,
+    SPLIT_BAND,
     PricePanel,
     confirm_extreme_moves,
 )
@@ -52,6 +60,8 @@ def test_settings() -> None:
     assert MOVE_BAND == 3.0
     assert CONFIRM_DAYS == 5
     assert MAX_WAIT_DAYS == 20
+    assert SPLIT_BAND == 10.0
+    assert PRICE_FILTER_ID == "price_filter_v2"
 
 
 def test_normal_moves_are_kept() -> None:
@@ -71,6 +81,23 @@ def test_new_level_is_used_once_it_has_held() -> None:
     """A real crash: withheld for CONFIRM_DAYS - 1 prices, used from the CONFIRM_DAYS-th."""
     prices = (10.0, 2.0, 2.1, 1.9, 2.0, 2.2, 2.3)
     assert kept(series(*prices)) == [10.0, 2.2, 2.3]
+
+
+def test_confirmed_rise_beyond_split_band_is_rescaled() -> None:
+    """Atos-like: x10,000 that holds. The level is kept from before the jump
+    and later moves are applied on top of it."""
+    prices = (10.0, 10.0, 100_000.0, 100_000.0, 100_000.0, 100_000.0, 100_000.0, 110_000.0)
+    assert kept(series(*prices)) == pytest.approx([10.0, 10.0, 10.0, 11.0])
+
+
+def test_confirmed_rise_within_split_band_is_kept() -> None:
+    prices = (10.0, 50.0, 50.0, 50.0, 50.0, 50.0, 55.0)
+    assert kept(series(*prices)) == [10.0, 50.0, 55.0]
+
+
+def test_confirmed_fall_beyond_split_band_is_kept() -> None:
+    prices = (100.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.1)
+    assert kept(series(*prices)) == [100.0, 1.0, 1.1]
 
 
 def test_quotes_without_trades_do_not_confirm_a_move() -> None:

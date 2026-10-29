@@ -7,6 +7,7 @@ import pytest
 
 from factor_investor.benchmarks.universe import (
     EUROPE,
+    MAX_MARKET_CAP_USD,
     MAX_WEIGHT,
     NORDICS,
     US,
@@ -73,6 +74,32 @@ def test_cap_weights_proportional_to_market_cap() -> None:
     total = sum(100.0 + i for i in range(1, 21))
     assert weights[20] == pytest.approx(120 / total)
     assert max(weights.values()) <= MAX_WEIGHT
+
+
+def test_cap_weights_drop_names_that_did_not_trade() -> None:
+    """Wheeler REIT 2017-05-31: split-adjusted price 5.2e11 USD, market cap
+    4.5e18 USD, median turnover 0 (reverse splits applied to prices, not to
+    shares). A name with zero median turnover is not investable for an index
+    fund; unknown turnover (new listings) is kept."""
+    universe = snapshot(
+        [(i, 1000.0, 10.0, 5.0) for i in range(1, 12)]
+        + [(98, 4.5e18, 5.2e11, 0.0), (99, 1000.0, 10.0, None)]
+    )
+    weights = as_dict(cap_weights(universe, history([])))
+    assert 98 not in weights
+    assert 99 in weights
+
+
+def test_cap_weights_drop_impossible_market_caps() -> None:
+    """Sunshine Biopharma 2010-10-29: market cap 3.3e17 USD with turnover above
+    zero (the largest company ever was worth about 5e12 USD)."""
+    assert MAX_MARKET_CAP_USD == 1e13
+    universe = snapshot(
+        [(i, 1000.0, 10.0, 5.0) for i in range(1, 12)] + [(98, 3.3e17, 1.0e8, 50.0)]
+    )
+    weights = as_dict(cap_weights(universe, history([]), max_market_cap=1e13))
+    assert 98 not in weights
+    assert 98 in as_dict(cap_weights(universe, history([])))  # no ceiling given
 
 
 def test_cap_weights_drop_turnover_larger_than_market_cap() -> None:
