@@ -111,6 +111,17 @@ Alla viktuppsättningar slår kontrollen i alla marknader (median per uppsättni
 
 Period 2010-01-01–2026-10-27 (historiken kräver data från 2008); kontrollerna körs om för samma period (`h0_liquid_equal_weight_{se,us}_2010`). Frågan: blir resultatet bättre eller sämre än v1 under samma period, och ändras bilden i USA?
 
+**Resultat v2 2026-10-29** (trials 256–313; fyra avbrutna körningar 257–261 markerade som misslyckade och omkörda; kontrollerna gav identiskt resultat båda gångerna). Mot kontrollen med samma rebalansering, 2010–2026; v1 jämförs över samma månader:
+
+| | Överavkastning median (min–max) | Före kontrollen | Block slagna, median | PBO | Bästa in-sample förlorar OOS | Deflaterad Sharpe (192 försök) |
+|---|---|---|---|---|---|---|
+| SE v1 | +4,1 % (+2,5 – +7,1) | 24/24 | 75 % | | | |
+| SE v2 | +4,2 % (+3,2 – +7,8) | 24/24 | 75 % | 63 % | 3 % | 98 % |
+| USA v1 | −4,1 % (−6,5 – −2,0) | 0/24 | 25 % | | | |
+| USA v2 | −0,6 % (−2,3 – +0,9) | 6/24 | 38 % | 76 % | 71 % | 28 % |
+
+Flerårshistorik i stället för ett års siffror: i Sverige lika bra i snitt men jämnare (sämsta konfigurationen +3,2 % mot +2,5 %, tillväxttung +5,2 % mot +2,9 %), med tyngdpunkt senare år. I USA försvinner det mesta av förlusten (−0,6 % mot −4,1 %), men ingen överavkastning: H2 är i USA fortfarande inte bättre än likavikt bland likvida bolag. Tolkning: v1:s förlust i USA berodde till stor del på ettårssiffror (engångseffekter, cykliska toppar); en stabilare kvalitetsbild tar bort förlusten men skapar ingen premie där.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
