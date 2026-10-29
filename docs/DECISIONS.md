@@ -925,3 +925,20 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Known limit:** the trial count treats configurations as independent; correlated configurations make the true number smaller, so the deflated Sharpe ratio is conservative.
 
 **Alternatives considered:** walk-forward with one rolling split (uses each period once as out-of-sample and favours the recent end); total returns (see above); a fixed holdout (ruled out by invariant 4).
+
+---
+
+## 2026-10-29 | Component framework, phase A: rebalance clock
+
+**Decision (user approved the plan):** the first part of ARCHITECTURE §2–6, enough for ranking hypotheses such as H2:
+- **Point-in-time view** (`pipeline/view.py`): bound to a date and an area, no date arguments; reads month-end snapshots (`factors/snapshot.py`: fundamentals with `known_from <= date`, price metrics up to the date), metric history (each snapshot as known on its own date) and the investable universe (eligible, domestic, one listing per company; market cap and turnover in the area's currency). Reads are cached per process; `clear_caches()` for tests.
+- **Components** (`components/`): versioned ids, kind, pydantic `Params` that reject unknown fields, registry refusing unversioned or duplicate ids. v1 set: `expression_v1` (filter), `percentile_v1` and `own_history_percentile_v1` (scores in (0, 1), higher is better, null if unknown), `top_n_hysteresis_v1` (portfolio: keep holdings within `sell_rank` × N, equal weight).
+- **Expression language** (`components/expression.py`): comparisons, and/or/not, + − × ÷, `abs`, numbers and names (metrics, `market_cap`, `turnover`, `price`, `years_of_history`); parsed to a whitelisted AST and compiled to polars, never `eval`. An unknown value never selects an instrument.
+- **Composite score:** weighted mean of the blocks a name has a score for; null if those blocks carry less than `min_coverage` of the weight.
+- **YAML strategies** (`config/strategies/<id>.yaml`, `pipeline/config.py`): any value may be `{search: [...]}` or `{search: {label: value}}` (named options such as weight sets). A trial's parameters are one choice per searched path, and only pre-registered options are accepted. Each file is registered as a trial strategy; its source hash covers the YAML and every component module it references. The file's hypothesis and area must match the trial's.
+
+**Acceptance:** a pipeline configured like `top_n_factor_v1` picks exactly the same 30 names (value and momentum, three dates); a pipeline using every component gives identical targets for T with all later data deleted.
+
+**Not yet:** stages 3–5 on the daily clock (timing, entries, exits, order intents, position state; ARCHITECTURE §7), ensembles, components declaring their data needs.
+
+**Alternatives considered:** one generic `expression_v1` for scores too (percentiles are clearer and need no expression); hashing the whole pipeline package per strategy (any refactor would block every logged version; the git commit covers it).

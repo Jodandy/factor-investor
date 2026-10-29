@@ -255,6 +255,12 @@ def run_trial(
     """
     spec.validate()
     registered = get_strategy(spec.strategy_id)
+    if registered.hypothesis is not None and registered.hypothesis != spec.hypothesis_id:
+        raise ValueError(
+            f"{spec.strategy_id} belongs to {registered.hypothesis}, not {spec.hypothesis_id}"
+        )
+    if registered.area is not None and registered.area != spec.area:
+        raise ValueError(f"{spec.strategy_id} runs on area {registered.area}, not {spec.area}")
     strategy = registered.factory(spec.params)
     source_hash = registered.source_hash()
     cost_bps = strategy.transaction_cost_bps

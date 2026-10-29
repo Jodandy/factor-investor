@@ -5,6 +5,7 @@ itself is real: rows, guards, determinism check and trial counts.
 """
 
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -125,9 +126,7 @@ class Broken(ScheduledStrategy):
 
 def test_failed_run_is_logged_and_counted(session: Session, tmp_path: Path) -> None:
     original = STRATEGIES["registry_db_test_v1"]
-    STRATEGIES["registry_db_test_v1"] = type(original)(
-        original.strategy_id, lambda _params: Broken(SCHEDULE), original.source_file
-    )
+    STRATEGIES["registry_db_test_v1"] = replace(original, factory=lambda _params: Broken(SCHEDULE))
     try:
         with pytest.raises(ValueError, match="strategy failure"):
             run(session, tmp_path, spec(variant="broken"))
@@ -202,10 +201,8 @@ def test_validate_experiment_from_logged_trials(session: Session, tmp_path: Path
         benchmarks / "equal_weight_v1_SE.parquet"
     )
     original = STRATEGIES["registry_db_test_v1"]
-    STRATEGIES["registry_db_test_v1"] = type(original)(
-        original.strategy_id,
-        lambda params: ScheduledStrategy(schedules[params["pick"]]),
-        original.source_file,
+    STRATEGIES["registry_db_test_v1"] = replace(
+        original, factory=lambda params: ScheduledStrategy(schedules[params["pick"]])
     )
     try:
         for pick in schedules:

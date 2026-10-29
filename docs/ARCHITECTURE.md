@@ -1,6 +1,6 @@
 # Strategy system architecture
 
-Status: **draft for review** (2026-10-28). Replaces the strategy-schema parts of WORK_ORDER fas 5 once agreed. Invariants in `CLAUDE.md` take precedence over everything here.
+Status: **draft for review** (2026-10-28). Phase A implemented 2026-10-29 (rebalance clock: view, components, YAML strategies; see DECISIONS). Replaces the strategy-schema parts of WORK_ORDER fas 5 once agreed. Invariants in `CLAUDE.md` take precedence over everything here.
 
 ## 1. Goal
 

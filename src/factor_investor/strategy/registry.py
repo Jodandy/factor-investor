@@ -25,12 +25,23 @@ StrategyFactory = Callable[[dict[str, Any]], Strategy]
 
 @dataclass(frozen=True)
 class RegisteredStrategy:
+    """A strategy id, its factory and the files that define its behaviour.
+
+    `hypothesis` and `area`, when set, must match a trial's (YAML strategies
+    declare both)."""
+
     strategy_id: str
     factory: StrategyFactory
-    source_file: Path
+    source_files: tuple[Path, ...]
+    hypothesis: str | None = None
+    area: str | None = None
 
     def source_hash(self) -> str:
-        return hashlib.sha256(self.source_file.read_bytes()).hexdigest()
+        # one file: its own hash (as logged before multi-file strategies existed)
+        hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in self.source_files]
+        if len(hashes) == 1:
+            return hashes[0]
+        return hashlib.sha256("".join(hashes).encode()).hexdigest()
 
 
 STRATEGIES: dict[str, RegisteredStrategy] = {}
@@ -42,15 +53,24 @@ def register_strategy(strategy_id: str) -> Callable[[StrategyFactory], StrategyF
         raise ValueError(f"Strategy id {strategy_id!r} must be lower_snake_case ending in _v<N>")
 
     def decorate(factory: StrategyFactory) -> StrategyFactory:
-        if strategy_id in STRATEGIES:
-            raise ValueError(f"Strategy id {strategy_id!r} is already registered")
         source = inspect.getsourcefile(factory)
         if source is None:
             raise ValueError(f"No source file for {strategy_id!r}")
-        STRATEGIES[strategy_id] = RegisteredStrategy(strategy_id, factory, Path(source))
+        add_strategy(RegisteredStrategy(strategy_id, factory, (Path(source),)))
         return factory
 
     return decorate
+
+
+def add_strategy(registered: RegisteredStrategy) -> None:
+    """Register a strategy built elsewhere (e.g. from a YAML file)."""
+    if not VERSIONED_ID.match(registered.strategy_id):
+        raise ValueError(
+            f"Strategy id {registered.strategy_id!r} must be lower_snake_case ending in _v<N>"
+        )
+    if registered.strategy_id in STRATEGIES:
+        raise ValueError(f"Strategy id {registered.strategy_id!r} is already registered")
+    STRATEGIES[registered.strategy_id] = registered
 
 
 def get_strategy(strategy_id: str) -> RegisteredStrategy:

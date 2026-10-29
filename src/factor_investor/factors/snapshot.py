@@ -36,3 +36,48 @@ def metric_snapshot(metric: str, as_of_date: date) -> pl.DataFrame:
     return pl.DataFrame(
         [(i, float(v)) for i, v in rows], schema=SNAPSHOT_SCHEMA, orient="row"
     ).sort("instrument_id")
+
+
+HISTORY_SCHEMA = {"instrument_id": pl.Int32, "date": pl.Date, "value": pl.Float64}
+
+
+def metric_history(metric: str, from_date: date, as_of_date: date) -> pl.DataFrame:
+    """[instrument_id, date, value] for every snapshot date in (from_date, as_of_date].
+
+    Each snapshot only holds what was known on its own date (fundamentals:
+    known_from <= date), so the history never contains later information.
+    """
+    query = text("""
+        SELECT instrument_id, date, value FROM fundamental_metrics
+        WHERE metric = :metric AND date > :from_date AND date <= :as_of
+          AND known_from <= date AND value IS NOT NULL
+        UNION ALL
+        SELECT instrument_id, date, value FROM price_metrics
+        WHERE metric = :metric AND date > :from_date AND date <= :as_of AND value IS NOT NULL
+    """)
+    with get_session() as session:
+        rows = session.execute(
+            query, {"metric": metric, "from_date": from_date, "as_of": as_of_date}
+        ).all()
+    return pl.DataFrame(
+        [(i, d, float(v)) for i, d, v in rows], schema=HISTORY_SCHEMA, orient="row"
+    ).sort("instrument_id", "date")
+
+
+def _distinct_metrics(table: str) -> list[str]:
+    # loose index scan over the metric index: fast on tens of millions of rows
+    query = text(f"""
+        WITH RECURSIVE m AS (
+            SELECT min(metric) AS v FROM {table}
+            UNION ALL
+            SELECT (SELECT min(metric) FROM {table} WHERE metric > m.v) FROM m WHERE v IS NOT NULL
+        )
+        SELECT v FROM m WHERE v IS NOT NULL
+    """)
+    with get_session() as session:
+        return [row[0] for row in session.execute(query).all()]
+
+
+def known_metrics() -> frozenset[str]:
+    """Every metric name in fundamental_metrics and price_metrics."""
+    return frozenset(_distinct_metrics("fundamental_metrics") + _distinct_metrics("price_metrics"))
