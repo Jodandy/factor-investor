@@ -712,7 +712,9 @@ def trials_validate(
     for row in report["block_stability"]:
         p = row["params"]
         label = " ".join(
-            str(p[k]) for k in ("factor", "top_n", "rebalance", "min_turnover") if k in p
+            f"{v:g}" if isinstance(v, int | float) and not isinstance(v, bool) else str(v)[:14]
+            for k, v in p.items()
+            if k not in ("area", "cost_bps", "higher_is_better", "positive_only")
         )
         table.add_row(
             str(row["trial_id"]),
