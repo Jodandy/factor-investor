@@ -254,6 +254,9 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
+**Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.
+
+
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.
 
 ---

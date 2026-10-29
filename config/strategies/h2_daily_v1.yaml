@@ -1,0 +1,101 @@
+# H2 with the daily clock (ablation), pre-registered 2026-10-29. Same as h2_composite_v1
+# with equal weights, top 25, quarterly, plus:
+#   timing: none / price above its 200-day mean / 50-day breakout (new positions wait for it)
+#   exits: none / trailing stop 20% / 30% below the high since entry (checked daily)
+#   sell_on_rank: true (sell when out of the selection at rebalancing) / false (only exits sell)
+# 3 x 3 x 2 = 18 configurations; timing none, exits none, sell_on_rank true is plain H2.
+# Never edit after a logged run: create h2_daily_v2 instead.
+id: h2_daily_v1
+hypothesis: H2
+description: H2 v1 (equal weights, top 25, quarterly) with daily timing and exits (ablation)
+area: SE
+rebalance: quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  min_coverage: 0.75
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: roic
+    weight: 0.333333
+  - component: percentile_v1
+    params:
+      metric: operating_margin
+    weight: 0.333333
+  - component: percentile_v1
+    params:
+      metric: fcf_margin
+    weight: 0.333333
+  - component: percentile_v1
+    params:
+      metric: revenue_growth_1y
+    weight: 0.5
+  - component: percentile_v1
+    params:
+      metric: profit_growth_1y
+    weight: 0.5
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 0.333333
+  - component: percentile_v1
+    params:
+      metric: fcf_yield
+    weight: 0.333333
+  - component: own_history_percentile_v1
+    params:
+      metric: pe_ratio
+      years: 5
+      higher_is_better: false
+      non_positive_is_worst: true
+      min_observations: 24
+    weight: 0.333333
+  - component: percentile_v1
+    params:
+      metric: solvency
+    weight: 0.5
+  - component: percentile_v1
+    params:
+      metric: current_ratio
+    weight: 0.5
+  - component: percentile_v1
+    params:
+      metric: dividend_yield
+    weight: 1.0
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 25
+    sell_rank: 1.5
+timing:
+  search:
+    none: []
+    ma200:
+    - component: price_above_ma_v1
+      params:
+        days: 200
+    breakout50:
+    - component: breakout_v1
+      params:
+        days: 50
+exits:
+  search:
+    none: []
+    stop20:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.2
+    stop30:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.3
+sell_on_rank:
+  search:
+  - true
+  - false
