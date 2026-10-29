@@ -256,6 +256,24 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.
 
+**Resultat 2026-10-30** (trials 560–591; 16 körningar misslyckades först på grund av för litet delat minne i databasens container och kördes om): referensen (vanlig H2) 15,3 %/år, Sharpe 0,71, största drawdown −44 %.
+
+| Överlägg (median över övriga val) | Avkastning mot referensen | Sharpe | Största drawdown | Block där det slår referensen |
+|---|---|---|---|---|
+| timing: ingen | −0,1 % | 0,74 | −40 % | 38 % |
+| timing: över 200-dagars medel | −2,5 % | 0,75 | −26 % | 31 % |
+| timing: 50-dagars utbrott | −3,6 % | 0,66 | −27 % | 31 % |
+| exit: ingen | −3,6 % | 0,60 | −41 % | 31 % |
+| exit: trailing stop 20 % | −2,2 % | 0,77 | −22 % | 38 % |
+| exit: trailing stop 30 % | −2,5 % | 0,73 | −28 % | 38 % |
+
+- **Trailing stop utan timing** är det enda som höjer avkastningen: stop 20 % och bara exits säljer: 16,0 %/år (+0,7), Sharpe 0,78, drawdown −35 %, slår referensen i 5 av 8 block. Stop 30 %: +0,4 %.
+- **Timing** (200-dagars medel eller utbrott) kostar 2,5–3,6 %/år i avkastning men halverar ungefär drawdown; riskjusterat ungefär oförändrat (200 dagar) eller sämre (utbrott). Lägst risk: 200-dagars medel + stop 20 % + sälj på rank: 12,1 %/år, Sharpe 0,83, drawdown −18 %.
+- **Behålla hårt utan exits** (aldrig sälja på rank) är sämst: 10,7 %/år: H2:s rankning behöver få sälja.
+- Alla 18 slår kontrollen (likavikt över samma likvida universum), +0,9 till +6,2 %/år.
+
+**Slutsats:** exits (trailing stops) och timing är framför allt riskreducerare, inte avkastningshöjare: drawdown sjunker kraftigt i alla kombinationer med stop, Sharpe förbättras i de flesta, men avkastningen mot vanlig H2 är lägre i de flesta tidsblock. Kriteriet (bättre riskjusterat eller drawdown i de flesta kombinationer och block) uppfylls för drawdown men inte för avkastning per block. 18 nya försök för H2 (nu 306).
+
 
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.
 
