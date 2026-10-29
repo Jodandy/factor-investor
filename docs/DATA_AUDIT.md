@@ -376,6 +376,10 @@ Handling (planned, in the cap-weighting component, no rebuild): skip market cap 
 - **Dividend timing:** mean monthly difference to the index is +0.6% in February and +1.7% in March, −1.5% in April and −0.8% in May, and within ±0.15% in other months. Estimated ex-dates (`known_from + 30`) fall about two months before the real ones (Investor B 2009 dividend: 2010-02-21 estimated, 2010-04-15 actual). Nets out over a year, but moves about 3% of return between months for dividend payers.
 - **Total return index precision:** `Numeric(24, 6)` with base 100 rounds the index of stocks that fell more than 99.9999% to zero (9,641 rows, 26 instruments); 108 instruments fall below 0.0001, where returns move in steps of 1% or more. The engine treats non-positive prices as missing.
 
+**After the fixes (partial rebuild 2026-10-29: dividend calendar ex-dates, double-precision index, domestic companies only, no minimum price, D shares excluded):** `cap_weight_v1` Sweden CAGR 9.92% vs 10.05% for OMX Stockholm GI, monthly correlation 0.996, tracking error 1.6% a year (was 4.2%). Mean monthly difference within ±0.2% in every calendar month (the February–May dividend pattern is gone). Largest yearly gaps: 2010 +4.5, 2021 −3.2, 2022 −3.0, 2018 −2.9 points. 151,169 of 183,965 report dividends are on calendar ex-dates; no total return index is zero or negative (minimum 2.4e-16).
+
+**Equal-weighted Sweden is not yet reliable:** CAGR rose from 6.5% to 10.1% once stocks below 5 SEK became eligible. Held positions had 157 one-day moves above 3× or below 1/3 (Transferator B ×12.2 on 2010-04-12, Kvix ×14.6 on 2024-11-08), together adding about 32 percentage points of summed daily return. Some are real penny-stock moves, some placeholder glitches; read-time glitch handling is needed before equal-weighted results are used.
+
 ---
 
 ## Remaining Questions
