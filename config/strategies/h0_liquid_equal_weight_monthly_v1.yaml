@@ -1,0 +1,21 @@
+# H0 control: equal weight over investable Swedish companies with median turnover
+# >= 1 MSEK a day, rebalanced monthly. Never edit after a logged run: create _v2.
+id: h0_liquid_equal_weight_monthly_v1
+hypothesis: H0
+description: Equal weight, investable SE with turnover >= 1 MSEK/day, monthly (control for monthly strategies)
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0

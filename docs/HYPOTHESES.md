@@ -274,6 +274,12 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 **Slutsats:** exits (trailing stops) och timing är framför allt riskreducerare, inte avkastningshöjare: drawdown sjunker kraftigt i alla kombinationer med stop, Sharpe förbättras i de flesta, men avkastningen mot vanlig H2 är lägre i de flesta tidsblock. Kriteriet (bättre riskjusterat eller drawdown i de flesta kombinationer och block) uppfylls för drawdown men inte för avkastning per block. 18 nya försök för H2 (nu 306).
 
+**Samma överlägg på momentum och magiska formeln, förregistrerat 2026-10-30**: samma 18 kombinationer (timing × exit × sälj på rank) på
+- `momentum_daily_v1` (H5): 12-1-månaders momentum, topp 30, månadsvis, omsättning ≥ 1 MSEK/dag (H5 hade inget likviditetsgolv; här för jämförbarhet med kontrollen och handelbarhet), 2008–2026, kontroll `h0_liquid_equal_weight_monthly_v1` (likavikt över samma likvida universum, månadsvis).
+- `magic_formula_daily_v1` (H6): magiska formeln, topp 20, kvartalsvis, börsvärde ≥ 500 MSEK, 2008-12–2026, kontroll `h0_magic_formula_universe_v1` (kvartal, ≥ 500 MSEK).
+
+Samma bedömning som för H2. Frågan: hjälper stops och timing momentum (känd för plötsliga krascher) mer än kvalitets- och värdestrategierna?
+
 
 **Regim**: index eller likaviktat universum under {150, 200}-dagars medel, eller 12-månaders universumsavkastning negativ, eller andel bolag över 200-dagars medel under {30 %, 40 %}. Åtgärd: inga nya köp / exponering {50 %, 0 %}. Utvärderas på om det förbättrar riskjusterad avkastning och drawdown över många parameterval, inte om det räddar en enskild krasch.
 

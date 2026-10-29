@@ -1,0 +1,55 @@
+# H5 momentum with the daily clock (ablation), pre-registered 2026-10-30: 12-1 month
+# momentum, top 30, monthly, turnover >= 1 MSEK a day (H5 had no liquidity floor), plus:
+#   timing: none / price above its 200-day mean / 50-day breakout (new positions wait for it)
+#   exits: none / trailing stop 20% / 30% below the high since entry (checked daily)
+#   sell_on_rank: true / false (only exits sell)
+# 3 x 3 x 2 = 18 configurations; none, none, true is the plain strategy.
+# Never edit after a logged run: create _v2 instead.
+id: momentum_daily_v1
+hypothesis: H5
+description: 12-1 month momentum, top 30, monthly, turnover >= 1 MSEK/day, with daily timing and exits
+  (ablation)
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: momentum_12_1m
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 30
+    sell_rank: 1.0
+timing:
+  search:
+    none: []
+    ma200:
+    - component: price_above_ma_v1
+      params:
+        days: 200
+    breakout50:
+    - component: breakout_v1
+      params:
+        days: 50
+exits:
+  search:
+    none: []
+    stop20:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.2
+    stop30:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.3
+sell_on_rank:
+  search:
+  - true
+  - false
