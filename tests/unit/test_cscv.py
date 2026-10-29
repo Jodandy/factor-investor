@@ -88,3 +88,24 @@ def test_block_stability() -> None:
     result = block_stability(returns, benchmark, n_blocks=4)
     assert result.share_of_blocks_beaten.tolist() == [1.0, 0.5]
     assert result.excess_by_block.shape == (4, 2)
+
+
+def test_block_stability_with_a_benchmark_per_configuration() -> None:
+    """Each configuration against its own control (e.g. same rebalancing)."""
+    returns = np.full((80, 2), 0.01)
+    benchmark = np.zeros((80, 2))
+    benchmark[:, 1] = 0.02
+    result = block_stability(returns, benchmark, n_blocks=4)
+    assert result.share_of_blocks_beaten.tolist() == [1.0, 0.0]
+
+
+def test_matching_controls() -> None:
+    from factor_investor.validation.experiment import match_controls
+
+    trials = [{"rebalance": "quarterly", "top_n": 15}, {"rebalance": "semiannual", "top_n": 25}]
+    controls = {10: {"rebalance": "quarterly"}, 11: {"rebalance": "semiannual"}}
+    assert match_controls(trials, controls) == [10, 11]
+    with pytest.raises(ValueError, match="no control"):
+        match_controls([{"rebalance": "annual"}], controls)
+    with pytest.raises(ValueError, match="several"):
+        match_controls([{"rebalance": "quarterly"}], {**controls, 12: {}})

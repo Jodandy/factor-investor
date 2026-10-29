@@ -668,7 +668,13 @@ def trials_validate(
     blocks: int = typer.Option(8, "--blocks", help="Even number of time blocks for CSCV"),
     purge: int = typer.Option(1, "--purge", help="Months purged next to in-sample blocks"),
     total: bool = typer.Option(
-        False, "--total", help="Use total returns instead of excess over equal_weight_v1"
+        False, "--total", help="Use total returns instead of excess over the benchmark"
+    ),
+    control: str = typer.Option(
+        None,
+        "--control",
+        help="Benchmark each configuration against the trial of this experiment with "
+        "matching parameters (e.g. the same rebalancing) instead of equal_weight_v1",
     ),
 ) -> None:
     """CSCV/PBO, deflated Sharpe and block stability from logged trials."""
@@ -677,7 +683,7 @@ def trials_validate(
 
     with get_session() as session:
         report = validate_experiment(
-            session, experiment, n_blocks=blocks, purge=purge, relative=not total
+            session, experiment, n_blocks=blocks, purge=purge, relative=not total, control=control
         )
     c, d = report["cscv"], report["deflated_sharpe"]
     first, last, months = report["months"]
@@ -697,9 +703,9 @@ def trials_validate(
         f"{d['sharpe_annualized']:.2f}, {report['trials_for_hypothesis']} trials): "
         f"{d['dsr']:.0%}"
     )
-    table = Table(title="Excess return over equal_weight_v1 per block")
+    table = Table(title=f"Excess return over {report['benchmark']} per block")
     table.add_column("trial")
-    table.add_column("params", no_wrap=True)
+    table.add_column("params", no_wrap=True, min_width=28)
     for start, end in report["blocks"]:
         table.add_column(f"{start[2:4]}-{end[2:4]}", justify="right")
     table.add_column("beat", justify="right")

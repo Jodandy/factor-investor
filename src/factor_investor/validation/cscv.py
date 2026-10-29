@@ -170,11 +170,12 @@ class BlockStability:
 def block_stability(
     returns: np.ndarray, benchmark: np.ndarray, n_blocks: int = 8
 ) -> BlockStability:
-    """Compounded excess return over the benchmark in each block."""
+    """Compounded excess return over the benchmark in each block. `benchmark`
+    is one series (months,) or one per configuration (months, configurations)."""
     rows = []
     for start, end in block_bounds(len(returns), n_blocks):
         strategy = np.prod(1 + returns[start:end], axis=0) - 1
-        bench = np.prod(1 + benchmark[start:end]) - 1
+        bench = np.prod(1 + benchmark[start:end], axis=0) - 1
         rows.append(strategy - bench)
     excess = np.array(rows)
     return BlockStability(excess, (excess > 0).mean(axis=0))

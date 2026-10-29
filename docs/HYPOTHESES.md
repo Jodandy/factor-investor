@@ -75,6 +75,15 @@ Parameterrum (24): viktuppsättning {lika (alla 1), kvalitetstung (lönsamhet oc
 
 **Känd svaghet i v1**: engångsintäkter (t.ex. licensintäkter i bioteknikbolag) ger extrema marginaler och låga P/E på ett enda års siffror.
 
+**Resultat 2026-10-29** (experiment `h2_composite_v1_se`, trials 76–99, 0 misslyckade). Jämfört med kontrollen `h0_liquid_equal_weight_se` (likavikt över samma likvida universum, samma rebalansering; trials 100–101):
+- alla 24 konfigurationer slår kontrollen; överavkastning median +4,0 %/år (min +2,1 %), informationskvot median ~0,5
+- slår kontrollen i 7 av 8 tidsblock (median), svagast 2024–2026
+- alla fyra viktuppsättningar fungerar (median +3–5 %/år); tillväxttung svagast
+- CSCV: PBO 71 % (att välja bästa parametrar hjälper inte), men konfigurationen som är bäst in-sample förlorar mot kontrollen out-of-sample i bara 1 % av uppdelningarna; deflaterad Sharpe för bästa konfigurationen 97 % (24 försök)
+- mot `equal_weight_v1` (hela universumet): +2,1 till +7,5 %/år, PBO 44 %, deflaterad Sharpe 93 %; blocket 2022–2024 stort (småbolagskrasch)
+
+**Status:** inte falsifierad. Kriteriet ("ingen viktuppsättning slår benchmark out-of-sample, eller bara en") uppfylls inte: alla fyra slår kontrollen, i nästan alla perioder. Reservationer: Börsdata saknar avnoterade bolag (överskattar troligen), få likvida bolag tidigt (67 år 2009), engångsintäkter i v1, inga nya data sedan hypotesen formulerades. Nästa steg: variantaxlarna (hårda minimikrav, hysteres), robusthet mot avnoteringar, och framåtriktad pappershandel innan något används på riktigt.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

@@ -35,49 +35,92 @@ def monthly_returns(daily: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def match_controls(params: list[dict[str, Any]], controls: dict[int, dict[str, Any]]) -> list[int]:
+    """For each configuration, the control trial whose parameters all equal the
+    configuration's values for the same keys (e.g. the same rebalancing)."""
+    matched = []
+    for p in params:
+        hits = [
+            trial_id
+            for trial_id, c in controls.items()
+            if all(k in p and p[k] == v for k, v in c.items())
+        ]
+        if not hits:
+            raise ValueError(f"no control matches {p}")
+        if len(hits) > 1:
+            raise ValueError(f"several controls match {p}: {hits}")
+        matched.append(hits[0])
+    return matched
+
+
 @dataclass(frozen=True)
 class ExperimentReturns:
     trial_ids: list[int]
     params: list[dict[str, Any]]
     months: list[Any]
     returns: np.ndarray  # (months, configurations)
-    benchmark: np.ndarray  # (months,)
+    benchmark: np.ndarray  # (months, configurations): each configuration's benchmark
 
 
-def load_experiment(
-    session: Session, experiment: str, benchmarks_dir: Path = BENCHMARKS_DIR
-) -> ExperimentReturns:
+def _completed(session: Session, experiment: str) -> list[Trial]:
     trials = session.scalars(
         select(Trial)
         .where(Trial.experiment == experiment, Trial.status == "completed")
         .order_by(Trial.id)
     ).all()
-    if len(trials) < 2:
-        raise ValueError(f"Experiment {experiment!r} has {len(trials)} completed trials")
-    # one row per configuration: the latest run (reruns are identical by the determinism check)
+    # one per configuration: the latest run (reruns are identical by the determinism check)
     latest: dict[str, Trial] = {t.config_hash: t for t in trials}
-    chosen = sorted(latest.values(), key=lambda t: t.id)
+    return sorted(latest.values(), key=lambda t: t.id)
+
+
+def load_experiment(
+    session: Session,
+    experiment: str,
+    benchmarks_dir: Path = BENCHMARKS_DIR,
+    control: str | None = None,
+) -> ExperimentReturns:
+    """Monthly returns of the experiment's configurations and of each one's
+    benchmark: the area's equal_weight_v1, or the matching trial of the
+    `control` experiment (`match_controls`)."""
+    chosen = _completed(session, experiment)
+    if len(chosen) < 2:
+        raise ValueError(f"Experiment {experiment!r} has {len(chosen)} completed configurations")
     areas = {(t.area, t.from_date, t.to_date) for t in chosen}
     if len(areas) != 1:
         raise ValueError(f"Trials differ in area or period: {sorted(areas)}")
     area = chosen[0].area
 
+    def monthly(trial: Trial, name: str) -> pl.DataFrame:
+        assert trial.returns_path is not None
+        return monthly_returns(pl.read_parquet(trial.returns_path)).rename({"r": name})
+
     frame: pl.DataFrame | None = None
     for t in chosen:
-        assert t.returns_path is not None
-        m = monthly_returns(pl.read_parquet(t.returns_path)).rename({"r": f"t{t.id}"})
+        m = monthly(t, f"t{t.id}")
         frame = m if frame is None else frame.join(m, on="month")
-    bench = monthly_returns(pl.read_parquet(benchmarks_dir / f"equal_weight_v1_{area}.parquet"))
     assert frame is not None
+    if control is None:
+        bench = monthly_returns(pl.read_parquet(benchmarks_dir / f"equal_weight_v1_{area}.parquet"))
+        frame = frame.join(bench.rename({"r": "b"}), on="month")
+        bench_columns = ["b"] * len(chosen)
+    else:
+        controls = {c.id: c for c in _completed(session, control)}
+        if {(c.area, c.from_date, c.to_date) for c in controls.values()} != areas:
+            raise ValueError(f"Control {control!r} differs in area or period")
+        matched = match_controls(
+            [t.params for t in chosen], {i: c.params for i, c in controls.items()}
+        )
+        for trial_id in sorted(set(matched)):
+            frame = frame.join(monthly(controls[trial_id], f"c{trial_id}"), on="month")
+        bench_columns = [f"c{i}" for i in matched]
     # drop the first month, which starts with cash until the first fill
-    frame = frame.join(bench.rename({"r": "benchmark"}), on="month").sort("month").slice(1)
-    columns = [f"t{t.id}" for t in chosen]
+    frame = frame.sort("month").slice(1)
     return ExperimentReturns(
         trial_ids=[t.id for t in chosen],
         params=[t.params for t in chosen],
         months=frame["month"].to_list(),
-        returns=frame.select(columns).to_numpy(),
-        benchmark=frame["benchmark"].to_numpy(),
+        returns=frame.select([f"t{t.id}" for t in chosen]).to_numpy(),
+        benchmark=np.column_stack([frame[c].to_numpy() for c in bench_columns]),
     )
 
 
@@ -87,11 +130,13 @@ def validate_experiment(
     n_blocks: int = 8,
     purge: int = 1,
     relative: bool = True,
+    control: str | None = None,
     out_dir: Path = VALIDATION_DIR,
     benchmarks_dir: Path = BENCHMARKS_DIR,
 ) -> dict[str, Any]:
-    data = load_experiment(session, experiment, benchmarks_dir)
-    tested = data.returns - data.benchmark[:, None] if relative else data.returns
+    data = load_experiment(session, experiment, benchmarks_dir, control)
+    tested = data.returns - data.benchmark if relative else data.returns
+    benchmark_name = f"control experiment {control}" if control else "equal_weight_v1"
     hypothesis = session.scalars(
         select(Trial.hypothesis_id).where(Trial.experiment == experiment)
     ).first()
@@ -111,7 +156,8 @@ def validate_experiment(
         "months": [str(data.months[0]), str(data.months[-1]), len(data.months)],
         "blocks": [[str(data.months[s]), str(data.months[e - 1])] for s, e in bounds],
         "purge_months": purge,
-        "returns": "excess over equal_weight_v1" if relative else "total",
+        "benchmark": benchmark_name,
+        "returns": f"excess over {benchmark_name}" if relative else "total",
         "configurations": len(data.trial_ids),
         "trials_for_hypothesis": n_trials,
         "cscv": {

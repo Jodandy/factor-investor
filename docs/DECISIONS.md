@@ -942,3 +942,13 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Not yet:** stages 3–5 on the daily clock (timing, entries, exits, order intents, position state; ARCHITECTURE §7), ensembles, components declaring their data needs.
 
 **Alternatives considered:** one generic `expression_v1` for scores too (percentiles are clearer and need no expression); hashing the whole pipeline package per strategy (any refactor would block every logged version; the git commit covers it).
+
+---
+
+## 2026-10-29 | Validation against a control experiment; one component per file
+
+**Decision:** `trials validate --control <experiment>` measures each configuration against the control trial whose parameters all equal the configuration's values for the same keys (e.g. `h0_liquid_equal_weight_se` with the same rebalancing), instead of the area's `equal_weight_v1`. HYPOTHESES.md already names the primary benchmark as the equal-weighted investable universe with the same rebalancing frequency and costs; a strategy with its own universe filter (e.g. minimum turnover) is compared with equal weight over that filtered universe, so the filter itself is not credited as skill.
+
+**Control:** `h0_liquid_equal_weight_v1` (H0): equal weight over investable SE with median turnover ≥ 1 MSEK/day, via `constant_v1` (same score for all). 2008–2026: CAGR 9.73% quarterly, 10.37% semiannual (equal_weight_v1 SE 9.63%): the liquidity filter alone adds little over the full period.
+
+**One component per file** from here on (`components/constant.py`): a strategy's source hash covers every component module it references, so adding a component to a shared module would make logged strategies count as changed. The first four components share modules and stay there.
