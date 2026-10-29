@@ -139,6 +139,18 @@ Flerårshistorik i stället för ett års siffror: i Sverige lika bra i snitt me
 
 **Stresstest mot saknade konkurser, förregistrerat 2026-10-29**: `h2_composite_v1` (SE, alla 24) och kontrollen `h0_liquid_equal_weight_v1` under scenariot `bankruptcy` med årlig konkursfrekvens {2 %, 5 %} × slumpfrö {1, 2}, svaga bolag (ROIC ≤ 0 eller okänd, soliditet < 30 %) fyra gånger så utsatta; period 2008–2026. Experiment `h2_stress_bk{2,5}_s{1,2}_se` och `h0_stress_bk{2,5}_s{1,2}_se`. H2 klarar testet om överavkastningen mot kontrollen (samma scenario) i median är kvar på minst hälften av den ostressade (+4,0 %/år).
 
+**Resultat stresstest 2026-10-29** (trials 418–521, 104 körningar, 0 misslyckade):
+
+| Scenario | H2 CAGR (median) | Kontroll | Överavkastning median (min) | Före kontrollen |
+|---|---|---|---|---|
+| Ingen stress | 14,3 % | 10,1 % | +4,0 % (+2,1) | 24/24 |
+| 2 %/år, frö 1 | 11,8 % | 7,7 % | +4,0 % (+1,3) | 24/24 |
+| 2 %/år, frö 2 | 12,5 % | 8,6 % | +3,8 % (+2,4) | 24/24 |
+| 5 %/år, frö 1 | 10,4 % | 6,1 % | +4,3 % (+1,7) | 24/24 |
+| 5 %/år, frö 2 | 10,5 % | 6,1 % | +4,1 % (+2,5) | 24/24 |
+
+Klarar testet: konkurserna sänker båda portföljernas avkastning med 2–4 procentenheter per år, men överavkastningen mot kontrollen ligger kvar (+3,8 till +4,3 %/år). H2 undviker svaga bolag ungefär lika mycket som konkurserna drabbar dem, så de saknade avnoterade bolagen förklarar inte H2:s försprång i Sverige. De absoluta avkastningarna är däremot troligen överskattade med några procentenheter per år.
+
 ---
 
 ## H3 — Stabila kassaflöden med timing
