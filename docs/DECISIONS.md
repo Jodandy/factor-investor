@@ -760,3 +760,15 @@ Factor cache version bumped to 5.
 **Known cost:** the chosen listing switches in 2.1% of company-months (738 times over 2007–2026), mostly companies with home and US listings of similar liquidity (AB InBev, Logitech, BP, Aegon, Santander) and Lindt's two share classes. A strategy holding such a company would sell one listing and buy the other. Accepted for v1; if backtests show it matters, v2 keeps the current listing unless another is clearly more liquid.
 
 **Alternatives considered:** home listing by ISIN country (stable, but ISINs are missing for many listings); keep the type-0 listing (arbitrary for share classes); a deduplicated universe table (needs a rebuild whenever the rule changes).
+
+---
+
+## 2026-10-29 | In-memory price panel for the backtest engine
+
+**Finding:** the engine queried `total_returns` once per trading day (about 50 ms with row conversion), about 15 s for a 2-year monthly backtest and several minutes for 20 years. Too slow for random-portfolio baselines (WORK_ORDER fas 6: 500 runs).
+
+**Decision:** `backtest/prices.py` exports `total_returns` (instrument_id, date, total_return_index) to `data/cache/prices/total_returns.parquet` via `COPY` (42M rows, 36 s, 410 MB) and the engine reads prices from memory (`PricePanel`, loaded once per process, 1.4 s). The Parquet file stores the table's row count and newest `created_at`; on load they are compared with the database and the file is rebuilt if they differ, so prices from before a `build-returns` are never used. Strategies never see the panel; the engine only asks for the current day's prices, as before.
+
+**Verified:** identical prices on 6 dates, identical trading days, and an identical backtest (trades, daily returns, final value) against the old per-day queries; 1.1 s vs 15 s for 2022–2023.
+
+**Alternatives considered:** keep per-day queries (too slow); one query per backtest (still re-reads 42M rows per run); a manual `build-price-panel` step (easy to forget after a rebuild).

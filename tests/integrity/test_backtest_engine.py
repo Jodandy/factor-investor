@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 
 from factor_investor.backtest.engine import STALE_PRICE_DAYS, BacktestEngine
+from factor_investor.backtest.prices import PricePanel
 from factor_investor.backtest.strategy import Strategy, TargetPortfolio
 
 START = date(2015, 1, 5)
@@ -19,22 +20,13 @@ def trading_days(n: int) -> list[date]:
     return [START + timedelta(days=i) for i in range(n)]
 
 
-class InMemoryEngine(BacktestEngine):
-    """Engine reading prices from a dict instead of the database."""
-
-    def __init__(self, prices: dict[date, dict[int, float]], **kwargs: int) -> None:
-        super().__init__(**kwargs)
-        self._prices = prices
-
-    def _get_trading_days(self, from_date: date, to_date: date) -> list[date]:
-        return sorted(d for d in self._prices if from_date <= d <= to_date)
-
-    def _get_prices(self, as_of_date: date) -> pl.DataFrame:
-        day = self._prices.get(as_of_date, {})
-        return pl.DataFrame(
-            {"instrument_id": list(day.keys()), "price": list(day.values())},
-            schema={"instrument_id": pl.Int32, "price": pl.Float64},
-        )
+def InMemoryEngine(
+    prices: dict[date, dict[int, float]], **kwargs: int
+) -> BacktestEngine:
+    """Engine on a synthetic price panel instead of the database."""
+    rows = [(i, d, p) for d, day in prices.items() for i, p in day.items()]
+    frame = pl.DataFrame(rows, schema=["instrument_id", "date", "price"], orient="row")
+    return BacktestEngine(prices=PricePanel.from_frame(frame), **kwargs)
 
 
 class ScheduledStrategy(Strategy):

@@ -3,7 +3,7 @@
 The BacktestEngine is completely strategy-agnostic. It only cares about:
 1. When to rebalance (from strategy.get_rebalancing_dates())
 2. What to hold (from strategy.generate_signals())
-3. How prices evolved (from price database)
+3. How prices evolved (from the in-memory price panel)
 
 Everything else (factor selection, ranking, filtering) is delegated to the
 Strategy implementation.
@@ -11,16 +11,15 @@ Strategy implementation.
 
 import logging
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 import polars as pl
 
 from factor_investor import settings
 from factor_investor.analytics.metrics import PerformanceMetrics, calculate_performance_metrics
 from factor_investor.backtest.portfolio import Portfolio
+from factor_investor.backtest.prices import PricePanel, load_price_panel
 from factor_investor.backtest.strategy import Strategy, TargetPortfolio
-from factor_investor.db import get_session
-from factor_investor.universe.models import TotalReturn
 
 logger = logging.getLogger(__name__)
 
@@ -136,17 +135,28 @@ class BacktestEngine:
         >>> print(f"Trades: {len(result.trades)}")
     """
 
-    def __init__(self, execution_delay_days: int | None = None) -> None:
+    def __init__(
+        self, execution_delay_days: int | None = None, prices: PricePanel | None = None
+    ) -> None:
         """Initialize engine.
 
         Args:
             execution_delay_days: Trading days between signal and execution.
                 Defaults to settings.toml (>= 1). 0 is only for tests that
                 verify the delay is applied.
+            prices: Price panel; defaults to the total_returns panel, loaded
+                on first use.
         """
         if execution_delay_days is None:
             execution_delay_days = settings.execution_delay_days()
         self.execution_delay_days = execution_delay_days
+        self._panel = prices
+
+    @property
+    def prices(self) -> PricePanel:
+        if self._panel is None:
+            self._panel = load_price_panel()
+        return self._panel
 
     def run(
         self,
@@ -359,14 +369,14 @@ class BacktestEngine:
             }
         )
 
-        logger.info(f"Backtest complete:")
+        logger.info("Backtest complete:")
         logger.info(f"  Days simulated: {len(returns_df)}")
         logger.info(f"  Trades executed: {len(trades_df)}")
         logger.info(f"  Final value: {portfolio.total_value:,.0f}")
         logger.info(f"  Total return: {(portfolio.total_value / initial_capital - 1):.1%}")
 
         # Calculate comprehensive performance metrics
-        logger.info(f"Calculating performance metrics...")
+        logger.info("Calculating performance metrics...")
         metrics = calculate_performance_metrics(
             returns_df=returns_df,
             trades_df=trades_df,
@@ -374,7 +384,7 @@ class BacktestEngine:
             benchmark_returns=None,  # TODO: Add benchmark support
         )
 
-        logger.info(f"Performance metrics calculated:")
+        logger.info("Performance metrics calculated:")
         logger.info(f"  CAGR: {metrics.cagr:.1%}")
         logger.info(f"  Sharpe ratio: {metrics.sharpe_ratio:.2f}")
         logger.info(f"  Max drawdown: {metrics.max_drawdown:.1%}")
@@ -396,58 +406,13 @@ class BacktestEngine:
         )
 
     def _get_trading_days(self, from_date: date, to_date: date) -> list[date]:
-        """Get all trading days with available price data.
-
-        Args:
-            from_date: Start date
-            to_date: End date
-
-        Returns:
-            List of trading days
-        """
-        with get_session() as session:
-            # Get all unique dates from total_returns
-            from sqlalchemy import select
-
-            query = select(TotalReturn.date).where(
-                TotalReturn.date >= from_date,
-                TotalReturn.date <= to_date,
-            ).distinct().order_by(TotalReturn.date)
-
-            result = session.execute(query)
-            dates = [row[0] for row in result.fetchall()]
-
-            return dates
+        """All days with price data for any instrument, from_date..to_date."""
+        return self.prices.trading_days_between(from_date, to_date)
 
     def _get_prices(self, as_of_date: date) -> pl.DataFrame:
-        """Get prices for all instruments on a given date.
+        """[instrument_id, price] on as_of_date.
 
-        Uses total return index to get prices. The price is the TR index value,
-        which includes dividends.
-
-        Args:
-            as_of_date: Date to get prices for
-
-        Returns:
-            DataFrame with [instrument_id, price]
+        The price is the total return index (dividends reinvested), so
+        holding value includes dividends.
         """
-        with get_session() as session:
-            from sqlalchemy import select
-
-            query = select(
-                TotalReturn.instrument_id,
-                TotalReturn.total_return_index.label("price"),
-            ).where(
-                TotalReturn.date == as_of_date,
-            )
-
-            result = session.execute(query)
-            rows = result.fetchall()
-
-            if len(rows) == 0:
-                return pl.DataFrame(schema={"instrument_id": pl.Int32, "price": pl.Float64})
-
-            return pl.DataFrame({
-                "instrument_id": [r[0] for r in rows],
-                "price": [float(r[1]) for r in rows],
-            })
+        return self.prices.prices_on(as_of_date)

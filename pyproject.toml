@@ -108,6 +108,7 @@ module = [
     "optuna.*",
     "plotly.*",
     "duckdb.*",
+    "pyarrow.*",
 ]
 ignore_missing_imports = true
 
