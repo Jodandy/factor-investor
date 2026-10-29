@@ -34,10 +34,17 @@ class TargetPortfolio:
                   Weights should sum to ~1.0 (or fraction of capital to deploy)
         metadata: Optional metadata about the signal generation
                   (e.g., factor scores, rankings, filters applied)
+        keep: Held instruments to leave untouched (neither sold nor resized).
+              Holdings that are neither in `holdings` nor in `keep` are sold.
+        normalize: If True (default), weights are capped and rescaled to sum
+              1. If False they are fractions of portfolio value as given (for
+              targets that add or remove positions next to kept ones).
     """
 
     holdings: pl.DataFrame  # [instrument_id, weight]
     metadata: dict[str, Any] | None = None
+    keep: frozenset[int] = frozenset()
+    normalize: bool = True
 
     def __post_init__(self):
         """Validate holdings DataFrame."""
@@ -178,6 +185,23 @@ class Strategy(ABC):
         Note: Can be overridden by BacktestEngine config
         """
         return 0.10
+
+    def on_day(
+        self,
+        as_of_date: date,  # noqa: ARG002
+        holdings: pl.DataFrame,  # noqa: ARG002
+    ) -> "TargetPortfolio | None":
+        """Optional daily hook (the daily clock, ARCHITECTURE §2 stages 3-5).
+
+        Called at the end of every trading day except days with a rebalancing
+        signal, after that day's trades, with the holdings
+        [instrument_id, shares, price, value, weight]. It may use data up to
+        as_of_date only. A returned target is executed like a rebalancing
+        signal: from the next trading day, per instrument. Holdings not in the
+        target and not in its `keep` set are sold. Strategies that do not
+        override it are never called.
+        """
+        return None
 
     def on_rebalance(
         self,

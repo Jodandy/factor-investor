@@ -213,7 +213,10 @@ class BacktestEngine:
         last_price_date: dict[int, date] = {}
         previous_value = portfolio.total_value
 
+        uses_daily_clock = type(strategy).on_day is not Strategy.on_day
+
         for day_idx, current_date in enumerate(trading_days):
+            signal_today = False
             if (day_idx + 1) % 100 == 0:
                 logger.debug(f"  Progress: {day_idx + 1}/{len(trading_days)} days")
 
@@ -240,19 +243,25 @@ class BacktestEngine:
                     logger.warning("    Skipping rebalance - no target holdings")
                 else:
                     pending.append((day_idx + self.execution_delay_days, rebal_date, target))
+                    signal_today = True
 
             # A due signal replaces any unfilled orders from the previous one
             while pending and pending[0][0] <= day_idx:
                 _, signal_date, target = pending.pop(0)
-                weights = Portfolio.normalize_weights(
-                    target.holdings, strategy.max_position_weight
+                weights = (
+                    Portfolio.normalize_weights(target.holdings, strategy.max_position_weight)
+                    if target.normalize
+                    else target.holdings
                 )
+                # Kept holdings get no order at all (not sold, not resized)
                 open_orders = {
                     row["instrument_id"]: (row["weight"], signal_date)
                     for row in weights.iter_rows(named=True)
+                    if row["instrument_id"] not in target.keep
                 }
                 for ins_id in portfolio.holdings["instrument_id"].to_list():
-                    open_orders.setdefault(ins_id, (0.0, signal_date))
+                    if ins_id not in target.keep:
+                        open_orders.setdefault(ins_id, (0.0, signal_date))
 
             priced_today = set(prices_today["instrument_id"].to_list())
             for ins_id in portfolio.holdings["instrument_id"].to_list():
@@ -321,6 +330,15 @@ class BacktestEngine:
                     signal_date = executable[trades[0].instrument_id][1] or current_date
                     strategy.on_rebalance(
                         signal_date, current_holdings_df, new_holdings_df, trades_df
+                    )
+
+            # Daily clock: the strategy sees the day's closing holdings; its
+            # orders execute from the next trading day like any signal
+            if uses_daily_clock and not signal_today:
+                daily_target = strategy.on_day(current_date, portfolio.get_holdings_df())
+                if daily_target is not None:
+                    pending.append(
+                        (day_idx + self.execution_delay_days, current_date, daily_target)
                     )
 
             # Daily return from end-of-day value, so trading costs are included

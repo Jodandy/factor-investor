@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 
 from factor_investor.backtest.engine import STALE_PRICE_DAYS, BacktestEngine
+from factor_investor.backtest.strategy import TargetPortfolio
 from tests.integrity.synthetic import (
     InMemoryEngine,
     ScheduledStrategy,
@@ -38,8 +39,12 @@ class TestExecutionDelay:
         prices = {d: {1: 100.0 * 1.05**i} for i, d in enumerate(days)}
         schedule = {days[2]: {1: 1.0}}
 
-        delayed = run(InMemoryEngine(prices, execution_delay_days=1), ScheduledStrategy(schedule), days)
-        same_day = run(InMemoryEngine(prices, execution_delay_days=0), ScheduledStrategy(schedule), days)
+        delayed = run(
+            InMemoryEngine(prices, execution_delay_days=1), ScheduledStrategy(schedule), days
+        )
+        same_day = run(
+            InMemoryEngine(prices, execution_delay_days=0), ScheduledStrategy(schedule), days
+        )
 
         assert same_day.metadata["final_value"] > delayed.metadata["final_value"]
 
@@ -211,3 +216,90 @@ class TestSanity:
 
         actual = 1_000_000 * (1 + result.returns_df["portfolio_return"]).cum_prod()
         assert actual.to_list() == pytest.approx(expected, rel=1e-9)
+
+
+class DailyStrategy(ScheduledStrategy):
+    """Scheduled rebalances plus orders from the daily hook on given days."""
+
+    def __init__(
+        self,
+        schedule: dict,
+        daily: dict,
+        keep_on_schedule: frozenset[int] = frozenset(),
+    ) -> None:
+        super().__init__(schedule)
+        self.daily = daily
+        self.keep_on_schedule = keep_on_schedule
+        self.seen: list[tuple] = []
+
+    def generate_signals(self, as_of_date, current_holdings=None):  # type: ignore[no-untyped-def]
+        target = super().generate_signals(as_of_date, current_holdings)
+        # weights as given (fractions of value), so daily buys find cash
+        return TargetPortfolio(target.holdings, keep=self.keep_on_schedule, normalize=False)
+
+    def on_day(self, as_of_date, holdings):  # type: ignore[no-untyped-def]
+        self.seen.append((as_of_date, sorted(holdings["instrument_id"].to_list())))
+        if as_of_date not in self.daily:
+            return None
+        weights, keep = self.daily[as_of_date]
+        return TargetPortfolio(
+            pl.DataFrame(
+                {"instrument_id": list(weights), "weight": list(weights.values())},
+                schema={"instrument_id": pl.Int32, "weight": pl.Float64},
+            ),
+            keep=frozenset(keep),
+            normalize=False,
+        )
+
+
+@pytest.mark.integrity
+class TestDailyClock:
+    def prices(self, days: list) -> dict:
+        return {d: {1: 100.0 + i, 2: 50.0 + 2 * i, 3: 20.0 + i} for i, d in enumerate(days)}
+
+    def test_daily_order_executes_the_next_trading_day(self) -> None:
+        days = trading_days(10)
+        prices = self.prices(days)
+        strategy = DailyStrategy({days[0]: {1: 0.5}}, {days[3]: ({2: 0.4}, {1})})
+
+        result = run(InMemoryEngine(prices, execution_delay_days=1), strategy, days)
+
+        trades = result.trades.sort("date").rows(named=True)
+        assert [(t["date"], t["instrument_id"], t["action"]) for t in trades] == [
+            (days[1], 1, "buy"),
+            (days[4], 2, "buy"),
+        ]
+        assert trades[1]["price"] == prices[days[4]][2]  # never the signal day's price
+
+    def test_hook_sees_holdings_after_the_days_trades_and_not_on_signal_days(self) -> None:
+        days = trading_days(5)
+        strategy = DailyStrategy({days[0]: {1: 0.5}}, {})
+
+        run(InMemoryEngine(self.prices(days), execution_delay_days=1), strategy, days)
+
+        assert [d for d, _ in strategy.seen] == days[1:]  # days[0] has a scheduled signal
+        assert strategy.seen[0] == (days[1], [1])  # bought on days[1], visible the same evening
+
+    def test_kept_positions_are_not_traded(self) -> None:
+        """A rebalance with keep={1}: instrument 1 is neither sold nor resized,
+        2 (not in the target, not kept) is sold, 3 is bought."""
+        days = trading_days(10)
+        strategy = DailyStrategy(
+            {days[0]: {1: 0.5, 2: 0.5}, days[5]: {3: 0.3}}, {}, keep_on_schedule=frozenset({1})
+        )
+
+        result = run(InMemoryEngine(self.prices(days), execution_delay_days=1), strategy, days)
+
+        later = result.trades.filter(pl.col("date") > days[1]).sort("instrument_id")
+        assert [(t["instrument_id"], t["action"]) for t in later.rows(named=True)] == [
+            (2, "sell"),
+            (3, "buy"),
+        ]
+
+    def test_strategies_without_the_hook_are_unchanged(self) -> None:
+        days = trading_days(30)
+        prices = random_walk_prices(5, 30, seed=11)
+        schedule = {days[0]: equal_weight([0, 1, 2]), days[15]: equal_weight([2, 3, 4])}
+        plain = run(InMemoryEngine(prices), ScheduledStrategy(schedule), days)
+        daily = run(InMemoryEngine(prices), DailyStrategy(schedule, {}), days)
+        assert plain.metadata["final_value"] == daily.metadata["final_value"]
