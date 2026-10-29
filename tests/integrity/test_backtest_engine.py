@@ -185,3 +185,29 @@ class TestSanity:
 
         assert result.metadata["final_value"] == pytest.approx(1_000_000 / 1.001 * 1.5, rel=1e-12)
         assert result.trades["cost"].sum() == pytest.approx(1_000_000 / 1.001 * 0.001, rel=1e-12)
+
+    def test_equal_weight_universe_matches_closed_form_every_day(self) -> None:
+        """Benchmark replication (WORK_ORDER fas 6): without costs, an equal-weighted
+        universe rebalanced at T+1 is worth V(last execution) times the mean price
+        relative of all names since then, on every day."""
+        n, every = 20, 10
+        days = trading_days(61)
+        prices = random_walk_prices(n, len(days), seed=4)
+        signals = days[:-1:every]
+        schedule = {d: equal_weight(list(range(n))) for d in signals}
+
+        result = run(InMemoryEngine(prices), ScheduledStrategy(schedule, cost_bps=0), days)
+
+        executions = {days[days.index(d) + 1] for d in signals}
+        expected, value, base = [], 1_000_000.0, None
+        for d in days:
+            if base is not None:
+                value_today = value * sum(prices[d][i] / prices[base][i] for i in range(n)) / n
+            else:
+                value_today = value
+            if d in executions:
+                value, base = value_today, d
+            expected.append(value_today)
+
+        actual = 1_000_000 * (1 + result.returns_df["portfolio_return"]).cum_prod()
+        assert actual.to_list() == pytest.approx(expected, rel=1e-9)

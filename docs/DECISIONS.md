@@ -772,3 +772,21 @@ Factor cache version bumped to 5.
 **Verified:** identical prices on 6 dates, identical trading days, and an identical backtest (trades, daily returns, final value) against the old per-day queries; 1.1 s vs 15 s for 2022–2023.
 
 **Alternatives considered:** keep per-day queries (too slow); one query per backtest (still re-reads 42M rows per run); a manual `build-price-panel` step (easy to forget after a rebuild).
+
+---
+
+## 2026-10-29 | Index-like benchmarks per market (`benchmarks/universe.py`)
+
+**Decision:** benchmarks are ordinary strategies run through the same engine (same T+1 execution, 10 bps costs, monthly rebalancing on `month_end_dates`), over one market's investable universe: eligible on T, one country and trading currency (no FX conversion yet), one listing per company (`dedupe_listings_v1`).
+
+- `equal_weight_v1`: all names, equal weight. Primary benchmark (HYPOTHESES).
+- `cap_weight_v1`: weight by `market_cap_local` (point-in-time share count × price on T), with guards from DATA_AUDIT "Market Cap and Share Counts": drop a name whose implied share count (market cap / price) is more than 10× away from its median over the snapshots in the 370 days before T (about four quarterly reports); drop a name whose 60-day median daily turnover exceeds its market cap; cap each weight at 10%, redistributing the excess in proportion until no name is above the cap. Names without share history are kept.
+- `random_pick_v1`: k names drawn uniformly per rebalance, seeded by (seed, date), equal weight.
+
+Benchmarks are not strategy trials: they are not selected by a search, so they are not logged in the trial registry and do not count towards deflated Sharpe or PBO.
+
+**Verified:** weighting rules unit-tested; inputs and weights for 2026-06-30 are identical when all universe snapshots and prices after that date are deleted (in a rolled-back transaction), and the test fails if the share-history query reads past T. Engine replication: an equal-weighted universe matches the closed-form value on every day (synthetic prices, no costs). Sweden 2023-12-29: 592 investable names; cap weights drop 3 (no market cap; QLife's 28× share issue, a false positive; Vetted Assets, ~4,000×); largest weights AstraZeneca (capped at 10%), Atlas Copco A, ABB, Investor B, Volvo B.
+
+**Known limitations:** single-country only until a daily FX series is used; D shares are still in the universe until the planned universe rule; instrument country and currency are current metadata, not point-in-time.
+
+**Alternatives considered:** a vectorized benchmark separate from the engine (two implementations of execution and costs to keep in sync; the engine is instead checked against a closed form); capping in the engine via `max_position_weight` (caps once and renormalizes, so names can end up above the cap).
