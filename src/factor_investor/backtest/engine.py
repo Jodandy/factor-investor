@@ -18,7 +18,7 @@ import polars as pl
 from factor_investor import settings
 from factor_investor.analytics.metrics import PerformanceMetrics, calculate_performance_metrics
 from factor_investor.backtest.portfolio import Portfolio
-from factor_investor.backtest.prices import PricePanel, load_price_panel
+from factor_investor.backtest.prices import PRICE_FILTER_ID, PricePanel, load_price_panel
 from factor_investor.backtest.strategy import Strategy, TargetPortfolio
 
 logger = logging.getLogger(__name__)
@@ -402,6 +402,7 @@ class BacktestEngine:
                 "from_date": from_date,
                 "to_date": to_date,
                 "num_rebalances": len(rebal_dates),
+                "price_filter": PRICE_FILTER_ID,
             },
         )
 

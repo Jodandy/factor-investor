@@ -746,6 +746,8 @@ Factor cache version bumped to 5.
 
 **Decision (user):** keep the raw data; handle glitches later in a dedicated exclusion/cleaning step. Until then, price metrics and backtests can be distorted for the affected stocks.
 
+**Update 2026-10-29:** backtests now withhold extreme moves until confirmed (`price_filter_v1`, below). Price metrics in `base_metrics` still use raw prices.
+
 ---
 
 ## 2026-10-28 | One listing per company (`dedupe_listings_v1`)
@@ -818,3 +820,21 @@ Benchmarks are not strategy trials: they are not selected by a search, so they a
 **Takes effect** at the next `build-returns`.
 
 **Alternatives considered:** calendar amounts adjusted by a split factor (Börsdata keeps only one year of splits); keeping the 30-day estimate (moves about 3% of return between months for dividend payers); a fixed fallback lag for all countries (median lags range from 22 days in Canada to 139 in Poland).
+
+---
+
+## 2026-10-29 | Extreme price moves withheld until confirmed (`price_filter_v1`)
+
+**Finding:** one-day moves beyond 3× or 1/3 are common in the price panel (24,569 in 2,830 instruments). About a third reverse within a few days (bad prints such as Kvix 2024-10-24: 4.67 → 0.0145 → 0.70 → 10.1). Others are repeated quotes without trades: 22% of all price rows have zero volume, and a bad print can repeat for days (Kvix's 0.70 for 9 days, volume 0).
+
+**Decision:** the price panel (`backtest/prices.py`, `confirm_extreme_moves`) withholds a price that is more than `MOVE_BAND = 3` times above or below the instrument's last accepted price. The move is accepted once the instrument has traded (volume > 0) outside the band on `CONFIRM_DAYS = 5` days, or has been quoted outside it `MAX_WAIT_DAYS = 20` times. A move that comes back inside the band is never used. A withheld day looks like a day without trading: held positions keep their last accepted price, and orders wait. Volume is exported with the panel from `stock_prices`; the id `price_filter` is recorded in each backtest's metadata.
+
+**Point-in-time:** each decision uses only the instrument's own prices up to that day (tested by truncation: filtering a prefix of the history gives the same prices as filtering the full history). The cost is a delay: a real crash or jump is reflected 5–20 price days late, never early.
+
+**Why the waiting cap:** without it, illiquid stocks that crash on quotes alone were withheld for months or years (one held at 565 while quoted at 1.13 for over a year), and the engine sells a stale holding at its last accepted price, so returns would be overstated. With the cap, only 4 series in the whole panel end while a move is still waiting.
+
+**Effect:** 53,472 of 42.0M prices withheld (0.13%); extreme moves left in accepted series: 2,600 (confirmed level changes). Sweden 2008–2026: `equal_weight_v1` CAGR 10.13% → 10.02%, `cap_weight_v1` unchanged at 9.92%.
+
+**Known limit:** persistent wrong levels are not caught. Transferator B ×12.2 on 2010-04-12 held for three years and dropped ×1/11.5 on 2013-05-08, with volume falling about 100-fold at the first jump (likely a reverse split missing from the adjustment). Börsdata keeps only one year of splits, so this cannot be checked against split data.
+
+**Alternatives considered:** removing moves that reverse within N days (uses later prices to judge earlier ones: lookahead); a fixed number of days without the volume condition (repeated quotes confirm bad prints); volume condition without a cap (stale holdings sold at prices from before a real crash); a minimum price level (split-adjusted prices, see "No minimum price").

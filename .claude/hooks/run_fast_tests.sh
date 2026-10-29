@@ -12,7 +12,7 @@ esac
 
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 
-output=$(uv run pytest tests/unit tests/integrity/test_backtest_engine.py -q -p no:warnings -x 2>&1)
+output=$(uv run pytest tests/unit tests/integrity/test_backtest_engine.py tests/integrity/test_price_glitches.py -q -p no:warnings -x 2>&1)
 status=$?
 
 if [ $status -ne 0 ]; then

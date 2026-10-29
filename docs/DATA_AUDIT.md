@@ -367,6 +367,12 @@ Extreme but arithmetically real ratios also occur (Karnov P/E 20,852 from near-z
 
 Handling (planned, in the cap-weighting component, no rebuild): skip market cap when a report's share count differs more than 10× from the median of the last four reports; exclude when daily turnover > market cap; cap single-name weights. Equal-weight and rank-based components are unaffected by level errors.
 
+### Extreme Moves and Zero Volume (checked 2026-10-29)
+
+- 24,569 one-day moves above 3× or below 1/3 in 2,830 instruments (12,569 up, 12,000 down). 8,588 are back within 2× of the level before the move after 5 days.
+- 9,248,067 of 42,027,005 price rows (22%) have volume 0; 49,260 have no stock_prices row (volume null). Zero-volume days repeat a quote, which can be a bad print (Kvix 2024-10-25..11-07: 0.70 for 9 days between 4.67 and 10.1).
+- Persistent wrong levels exist: Transferator B 2010-04-12 ×12.2 (volume from about 100,000 to about 1,500 a day), back ×1/11.5 on 2013-05-08. Looks like a reverse split missing from the adjustment; cannot be verified (one year of splits).
+
 ### Benchmark vs OMX Stockholm GI (checked 2026-10-29)
 
 `cap_weight_v1` for Sweden over 2008-01-02..2026-10-27 vs OMX Stockholm GI (ins_id 639): CAGR 9.61% vs 10.05%, monthly correlation 0.969, tracking error 4.2% a year. Causes found:
@@ -378,7 +384,7 @@ Handling (planned, in the cap-weighting component, no rebuild): skip market cap 
 
 **After the fixes (partial rebuild 2026-10-29: dividend calendar ex-dates, double-precision index, domestic companies only, no minimum price, D shares excluded):** `cap_weight_v1` Sweden CAGR 9.92% vs 10.05% for OMX Stockholm GI, monthly correlation 0.996, tracking error 1.6% a year (was 4.2%). Mean monthly difference within ±0.2% in every calendar month (the February–May dividend pattern is gone). Largest yearly gaps: 2010 +4.5, 2021 −3.2, 2022 −3.0, 2018 −2.9 points. 151,169 of 183,965 report dividends are on calendar ex-dates; no total return index is zero or negative (minimum 2.4e-16).
 
-**Equal-weighted Sweden is not yet reliable:** CAGR rose from 6.5% to 10.1% once stocks below 5 SEK became eligible. Held positions had 157 one-day moves above 3× or below 1/3 (Transferator B ×12.2 on 2010-04-12, Kvix ×14.6 on 2024-11-08), together adding about 32 percentage points of summed daily return. Some are real penny-stock moves, some placeholder glitches; read-time glitch handling is needed before equal-weighted results are used.
+**Equal-weighted Sweden:** CAGR rose from 6.5% to 10.1% once stocks below 5 SEK became eligible. Held positions had 157 one-day moves above 3× or below 1/3 (Transferator B ×12.2 on 2010-04-12, Kvix ×14.6 on 2024-11-08). With extreme moves withheld until confirmed (`price_filter_v1`, DECISIONS 2026-10-29) the CAGR is 10.02%, so glitches explain little of the rise. Most of it is the minimum price itself: on split-adjusted prices, a 5 SEK threshold excluded stocks that later split, which are mostly past winners. Year by year, equal weighting follows OMX Stockholm Small Cap PI closely (2015 +48% vs +50%, 2023 −9% vs −6%); 10.0% against the index's 7.45% price return (about 9.5% with dividends) fits an equal-weighted universe that includes First North.
 
 ---
 

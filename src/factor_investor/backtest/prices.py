@@ -4,9 +4,13 @@ The engine needs every instrument's total return index on every trading day.
 Querying the database per day takes minutes per backtest, so the
 `total_returns` table is exported once to Parquet and loaded into memory.
 
-The Parquet file records the table's row count and newest `created_at`. On
-load these are compared with the database, and the file is rebuilt if they
-differ, so a backtest never reads prices from before a rebuild.
+The Parquet file records the table's row count and newest `created_at` (and
+the stock_prices row count, for volume). On load these are compared with the
+database, and the file is rebuilt if they differ, so a backtest never reads
+prices from before a rebuild.
+
+Extreme one-day moves are withheld until confirmed (`confirm_extreme_moves`),
+so one-day data errors are never traded or used to value a position.
 """
 
 import json
@@ -16,9 +20,11 @@ from datetime import date
 from functools import cache
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 import psycopg
 import pyarrow.parquet as pq
+from numba import njit
 from sqlalchemy import text
 
 from factor_investor.db import get_engine, get_session
@@ -30,17 +36,102 @@ SOURCE_KEY = "factor_investor.source"
 
 PRICE_SCHEMA = {"instrument_id": pl.Int32, "price": pl.Float64}
 
+# price_filter_v1: a move beyond MOVE_BAND (up or down) from the last accepted
+# price is withheld until the instrument has traded outside the band on
+# CONFIRM_DAYS days, or has been quoted outside it MAX_WAIT_DAYS times.
+PRICE_FILTER_ID = "price_filter_v1"
+MOVE_BAND = 3.0
+CONFIRM_DAYS = 5
+MAX_WAIT_DAYS = 20
+
+
+@njit(cache=True)
+def _accepted(
+    instrument_ids: np.ndarray,
+    prices: np.ndarray,
+    traded: np.ndarray,
+    band: float,
+    confirm_days: int,
+    max_wait_days: int,
+) -> np.ndarray:
+    """Per row (sorted by instrument, date): is the price accepted?
+
+    Each decision uses only the instrument's own earlier prices.
+    """
+    accepted = np.zeros(len(prices), dtype=np.bool_)
+    reference = 0.0
+    traded_outside = 0
+    quoted_outside = 0
+    for i in range(len(prices)):
+        if i == 0 or instrument_ids[i] != instrument_ids[i - 1]:
+            accepted[i] = True
+            reference = prices[i]
+            traded_outside = 0
+            quoted_outside = 0
+            continue
+        ratio = prices[i] / reference
+        if not 1.0 / band <= ratio <= band:
+            quoted_outside += 1
+            if traded[i]:
+                traded_outside += 1
+            if traded_outside < confirm_days and quoted_outside < max_wait_days:
+                continue
+        accepted[i] = True
+        reference = prices[i]
+        traded_outside = 0
+        quoted_outside = 0
+    return accepted
+
+
+def confirm_extreme_moves(
+    prices: pl.DataFrame,
+    band: float = MOVE_BAND,
+    confirm_days: int = CONFIRM_DAYS,
+    max_wait_days: int = MAX_WAIT_DAYS,
+) -> pl.DataFrame:
+    """Drop prices that moved beyond `band` from the last accepted price.
+
+    A move is used once the instrument has traded (volume > 0) outside the
+    band on `confirm_days` days, so a repeated quote without trades does not
+    confirm a bad print. It is used after `max_wait_days` quotes outside the
+    band in any case, so an illiquid stock that really crashed is not held at
+    its old price. A spike that comes back inside the band is never used.
+
+    The decision for a day depends only on prices up to that day, so no later
+    data leaks into the backtest. Withheld days look like days without trading
+    to the engine. Without a `volume` column every price counts as a trade.
+    """
+    prices = prices.sort(["instrument_id", "date"])
+    traded = (
+        (prices["volume"].fill_null(0) > 0).to_numpy()
+        if "volume" in prices.columns
+        else np.ones(prices.height, dtype=np.bool_)
+    )
+    keep = _accepted(
+        prices["instrument_id"].to_numpy(),
+        prices["price"].to_numpy(),
+        traded,
+        band,
+        confirm_days,
+        max_wait_days,
+    )
+    return prices.filter(pl.Series(keep))
+
 
 def _source_fingerprint() -> dict[str, str]:
     with get_session() as session:
         rows, newest = session.execute(
             text("SELECT count(*), max(created_at) FROM total_returns")
         ).one()
-    return {"rows": str(rows), "newest": str(newest)}
+        price_rows = session.execute(text("SELECT count(*) FROM stock_prices")).scalar_one()
+    return {"rows": str(rows), "newest": str(newest), "price_rows": str(price_rows)}
 
 
 def build_price_panel(path: Path = PANEL_PATH) -> Path:
-    """Export total_returns to Parquet (instrument_id, date, total_return_index)."""
+    """Export total_returns to Parquet (instrument_id, date, price, volume).
+
+    Volume comes from stock_prices and is used only to confirm extreme moves.
+    """
     fingerprint = _source_fingerprint()
     path.parent.mkdir(parents=True, exist_ok=True)
     csv_path = path.with_suffix(".csv")
@@ -54,8 +145,9 @@ def build_price_panel(path: Path = PANEL_PATH) -> Path:
             conn.cursor() as cur,
             csv_path.open("wb") as f,
             cur.copy(
-                "COPY (SELECT instrument_id, date, total_return_index FROM total_returns) "
-                "TO STDOUT (FORMAT csv)"
+                "COPY (SELECT t.instrument_id, t.date, t.total_return_index, s.volume "
+                "FROM total_returns t LEFT JOIN stock_prices s "
+                "ON s.ins_id = t.instrument_id AND s.date = t.date) TO STDOUT (FORMAT csv)"
             ) as copy,
         ):
             for chunk in copy:
@@ -66,8 +158,13 @@ def build_price_panel(path: Path = PANEL_PATH) -> Path:
     panel = pl.scan_csv(
         csv_path,
         has_header=False,
-        new_columns=["instrument_id", "date", "price"],
-        schema_overrides={"instrument_id": pl.Int32, "date": pl.Date, "price": pl.Float64},
+        new_columns=["instrument_id", "date", "price", "volume"],
+        schema_overrides={
+            "instrument_id": pl.Int32,
+            "date": pl.Date,
+            "price": pl.Float64,
+            "volume": pl.Int64,
+        },
     ).sort(["date", "instrument_id"])
     table = panel.collect().to_arrow()
     table = table.replace_schema_metadata({SOURCE_KEY: json.dumps(fingerprint)})
@@ -95,20 +192,23 @@ class PricePanel:
 
     @classmethod
     def from_frame(cls, prices: pl.DataFrame) -> "PricePanel":
-        """Build from a frame with columns [instrument_id, date, price].
+        """Build from a frame with columns [instrument_id, date, price] and
+        optionally volume.
 
         Non-positive prices (a total return index that rounded to zero) are
-        not tradable and are dropped; their days stay in the calendar.
+        not tradable and are dropped, and extreme moves are withheld until
+        confirmed (`confirm_extreme_moves`). Dropped days stay in the calendar.
         """
         prices = prices.select(
             pl.col("instrument_id").cast(pl.Int32),
             pl.col("date"),
             pl.col("price").cast(pl.Float64),
+            *([pl.col("volume")] if "volume" in prices.columns else []),
         )
         trading_days = sorted(prices["date"].unique().to_list())
         by_day = {
-            key[0]: frame.drop("date")
-            for key, frame in prices.filter(pl.col("price") > 0)
+            key[0]: frame.select("instrument_id", "price")
+            for key, frame in confirm_extreme_moves(prices.filter(pl.col("price") > 0))
             .partition_by("date", as_dict=True)
             .items()
         }
