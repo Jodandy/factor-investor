@@ -122,6 +122,12 @@ Ingen selektion. Finns för att kalibrera motorn och ge baslinjen som allt annat
 
 **Falsifieras om**: medianen över parameterrummet inte slår `equal_weight_v1` SE efter kostnader, eller om resultatet hänger på en enstaka parameterkombination eller enstaka år. Jämförs också med percentilen bland 500 slumpportföljer (`random_pick_v1`, k = 30, månadsvis); notera att slumpportföljerna byter hela innehavet varje månad och därmed bär högre kostnader än en strategi med lägre omsättning.
 
+**Resultat 2026-10-29** (experiment `h5_value_momentum_grid_se`, trials 28–51, 24 konfigurationer, 0 misslyckade; jämförelse med `equal_weight_v1` SE 2008–2026, CAGR 9,6 %):
+- **Värde:** alla 12 slår likavikt; överavkastning median +3,1 %/år (min +1,1 %), informationskvot median 0,30, percentil bland slumpportföljer median 98,6 %. Stabilt över parametrar. Men ojämnt över tid: slår likavikt 11–12 år av 19, och utan de tre bästa åren (2009 +54, 2021 +31, 2025 +30 procentenheter för topp 30 månadsvis) är medelöveravkastningen −1,3 %/år.
+- **Momentum:** 9 av 12 slår likavikt; median +0,8 %/år (−3,0 till +4,3), starkt beroende av antal innehav (topp 20 sämst, topp 50 bäst). Starkt 2013–2017 (+9,5 %/år), svagt 2023–2026 (−12,4 %/år).
+- **Status:** inte falsifierad men inte bekräftad. Värdepremien finns i datan men hänger på ett fåtal år. Deflaterad Sharpe och PBO (24 försök) återstår. Börsdata saknar avnoterade bolag, vilket troligen gynnar värde mest (billiga bolag som gick i konkurs saknas).
+
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
