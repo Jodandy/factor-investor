@@ -3,6 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: factor-investor-db
     restart: unless-stopped
+    # Docker's default 64 MB /dev/shm is too small for several parallel
+    # backtests querying at once ("could not resize shared memory segment")
+    shm_size: 1gb
     environment:
       POSTGRES_USER: factor
       POSTGRES_PASSWORD: factor_dev
