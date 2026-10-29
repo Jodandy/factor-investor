@@ -210,3 +210,9 @@ def test_own_history_non_positive_is_worst() -> None:
     result = scores(component.run(view, ids(1, 2)))
     assert result[1] == 0.0  # current value is a loss
     assert result[2] == 1.0  # compared with its six positive earlier values only
+
+
+def test_constant_scores_every_instrument_equally() -> None:
+    component = build_component("constant_v1", {})
+    result = scores(component.run(VIEW, ids(4, 1, 3)))
+    assert set(result.values()) == {0.5} and set(result) == {1, 3, 4}
