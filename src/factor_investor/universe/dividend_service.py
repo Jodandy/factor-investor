@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -131,7 +132,7 @@ def implausible_dividends(
 def compute_total_return_index(
     prices: list[tuple[date, Decimal | None]],
     dividends: list[tuple[date, Decimal]],
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Build a total return index (base 100) with reinvested dividends.
 
     TR[t] = TR[t-1] * (price[t] + div[t]) / price[t-1]
