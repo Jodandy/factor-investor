@@ -122,6 +122,8 @@ Period 2010-01-01–2026-10-27 (historiken kräver data från 2008); kontrollern
 
 Flerårshistorik i stället för ett års siffror: i Sverige lika bra i snitt men jämnare (sämsta konfigurationen +3,2 % mot +2,5 %, tillväxttung +5,2 % mot +2,9 %), med tyngdpunkt senare år. I USA försvinner det mesta av förlusten (−0,6 % mot −4,1 %), men ingen överavkastning: H2 är i USA fortfarande inte bättre än likavikt bland likvida bolag. Tolkning: v1:s förlust i USA berodde till stor del på ettårssiffror (engångseffekter, cykliska toppar); en stabilare kvalitetsbild tar bort förlusten men skapar ingen premie där.
 
+**v2 i Norge, Finland, Danmark och Europa, förregistrerat 2026-10-29**: `h2_composite_{no,fi,dk,eu}_v2`, samma regler som `h2_composite_v2` och samma omsättningsgolv som v1 i respektive marknad, period 2010-01-01–2026-10-27, mot kontrollerna `h0_liquid_equal_weight_{no,fi,dk,eu}_2010`. Frågan: håller v2 minst lika bra som v1 där v1 fungerade, och blir det jämnare?
+
 ---
 
 ## H3 — Stabila kassaflöden med timing

@@ -1,0 +1,325 @@
+# H2 v2 in FI, pre-registered 2026-10-29. Same as h2_composite_fi_v1 except
+# profitability and growth from 5 annual snapshots (same month each year, >= 3 needed):
+#   profitability: 5-year median ROIC, operating margin, FCF margin
+#   growth: 5-year median revenue growth, share of years with revenue growth > 0, 5-year median profit growth
+# Turnover >= 100,000 EUR a day. Period 2010-01-01..2026-10-27 (the history needs data from 2008).
+# Never edit after a logged run: create _v3 instead.
+id: h2_composite_fi_v2
+hypothesis: H2
+description: 'H2 v2: profitability and growth as 5-year annual history (median, consistency) instead of
+  one year'
+area: FI
+rebalance:
+  search:
+  - quarterly
+  - semiannual
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000
+scoring:
+  min_coverage: 0.75
+  blocks:
+    search:
+      equal:
+      - component: history_stat_v1
+        params:
+          metric: roic
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: operating_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: fcf_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: share_positive
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: profit_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      quality_heavy:
+      - component: history_stat_v1
+        params:
+          metric: roic
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.666667
+      - component: history_stat_v1
+        params:
+          metric: operating_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.666667
+      - component: history_stat_v1
+        params:
+          metric: fcf_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.666667
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: share_positive
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: profit_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      value_heavy:
+      - component: history_stat_v1
+        params:
+          metric: roic
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: operating_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: fcf_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: share_positive
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: profit_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 1.0
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+      growth_heavy:
+      - component: history_stat_v1
+        params:
+          metric: roic
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: operating_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: fcf_margin
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 0.333333
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 1.0
+      - component: history_stat_v1
+        params:
+          metric: revenue_growth_1y
+          stat: share_positive
+          years: 5
+          min_observations: 3
+        weight: 1.0
+      - component: history_stat_v1
+        params:
+          metric: profit_growth_1y
+          stat: median
+          years: 5
+          min_observations: 3
+        weight: 1.0
+      - component: percentile_v1
+        params:
+          metric: ev_ebit
+          higher_is_better: false
+          non_positive_is_worst: true
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: fcf_yield
+        weight: 0.333333
+      - component: own_history_percentile_v1
+        params:
+          metric: pe_ratio
+          years: 5
+          higher_is_better: false
+          non_positive_is_worst: true
+          min_observations: 24
+        weight: 0.333333
+      - component: percentile_v1
+        params:
+          metric: solvency
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: current_ratio
+        weight: 0.5
+      - component: percentile_v1
+        params:
+          metric: dividend_yield
+        weight: 1.0
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n:
+      search:
+      - 15
+      - 25
+      - 40
+    sell_rank: 1.5
