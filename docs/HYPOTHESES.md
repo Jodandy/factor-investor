@@ -319,6 +319,20 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 **Värdekomposit + CANSLIM, förregistrerat 2026-10-30** (experiment `h8_value_canslim_se`): värdedel {vanlig värdekomposit, värdekomposit med stop 20 % där bara exits säljer} + CANSLIM-del (A ≥ 25 %, lika vikt bland de som klarar urvalet, ingen exit) med andelar {50/50, 70/30}, kvartalsvis. 4 kombinationer. Obs: båda delarna valdes efter att deras resultat och den negativa korrelationen (−0,24 i överavkastning) var kända, så detta visar vad kombinationen hade gett, inte ett oberoende test.
 
+**Resultat 2026-10-30** (trials 761–764; nyckeltal från dagliga avkastningar):
+
+| | CAGR | Volatilitet | Sharpe | Största drawdown |
+|---|---|---|---|---|
+| värdekomposit ensam | 15,0 % | 21,0 % | 0,62 | −54 % |
+| värdekomposit med stop 20 % ensam | 16,6 % | 16,7 % | 0,87 | −38 % |
+| CANSLIM ensam | 18,9 % | 27,4 % | 0,61 | −41 % |
+| värdekomposit 50 % + CANSLIM 50 % | 18,0 % | 20,5 % | 0,78 | −38 % |
+| värdekomposit 70 % + CANSLIM 30 % | 17,1 % | 19,6 % | 0,77 | −41 % |
+| värdekomposit med stop 50 % + CANSLIM 50 % | 18,7 % | 19,1 % | 0,87 | −31 % |
+| värdekomposit med stop 70 % + CANSLIM 30 % | 18,1 % | 17,1 % | 0,94 | −30 % |
+
+Kombinationen är bättre än båda delarna var för sig: avkastningen ligger över genomsnittet av delarna (ombalanseringen mellan negativt korrelerade delar hjälper), Sharpe högre och drawdown lägre. Bäst riskjusterat: värdekomposit med stop 70 % + CANSLIM 30 %, Sharpe 0,94 och drawdown −30 %. Reservation: delarna valdes i efterhand, och CANSLIM-delen vilar på få innehav.
+
 ---
 
 ## H9 — Trendföljning med Ichimoku
