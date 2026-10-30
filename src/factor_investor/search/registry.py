@@ -386,7 +386,11 @@ def _run_logged(
     logger.info(f"Trial {trial.id}: {spec.strategy_id} {spec.params} ({spec.experiment})")
 
     try:
-        if spec.scenario is not None:
+        if hasattr(strategy, "combine"):  # an ensemble of logged trials (ensemble/sleeves.py)
+            if spec.scenario is not None:
+                raise ValueError("Ensembles take their scenario from their members' trials")
+            result = strategy.combine(spec, session)
+        elif spec.scenario is not None:
             from factor_investor.pipeline.view import excluded_instruments
 
             stressed_engine, events = _stressed(

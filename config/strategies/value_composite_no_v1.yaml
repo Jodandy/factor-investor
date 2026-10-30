@@ -1,0 +1,69 @@
+# H7 value composite in NO, pre-registered 2026-10-30: as value_composite_daily_v1 without timing,
+# turnover >= 1,000,000 NOK a day; exits none / stop 20% / 30% x sell_on_rank true / false = 6.
+# Never edit after a logged run: create _v2 instead.
+id: value_composite_no_v1
+hypothesis: H7
+description: Value composite in NO, top 25, quarterly, with trailing stops (exits x sell_on_rank)
+area: 'NO'
+rebalance: quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  min_coverage: 0.75
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pe_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pb_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: ps_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: fcf_yield
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: dividend_yield
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 25
+    sell_rank: 1.5
+timing: []
+exits:
+  search:
+    none: []
+    stop20:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.2
+    stop30:
+    - component: trailing_stop_v1
+      params:
+        pct: 0.3
+sell_on_rank:
+  search:
+  - true
+  - false

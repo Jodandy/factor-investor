@@ -1,0 +1,31 @@
+# H0 control for H6 in FI, pre-registered 2026-10-30:
+# as h0_magic_formula_universe_v1 with turnover >= 100,000 EUR a day and market cap >= 50,000,000 / 200,000,000 EUR.
+# Never edit after a logged run: create _v2 instead.
+id: h0_magic_formula_universe_fi_v1
+hypothesis: H0
+description: Equal weight over the magic formula universe (control for H6)
+area: FI
+rebalance:
+  search:
+  - annual
+  - quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000 and sector_id != 1 and sector_id != 10
+- component: expression_v1
+  params:
+    expression:
+      search:
+        mcap_small: market_cap >= 50000000
+        mcap_large: market_cap >= 200000000
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0

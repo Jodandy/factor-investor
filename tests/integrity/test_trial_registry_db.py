@@ -241,3 +241,65 @@ def test_validate_experiment_from_logged_trials(session: Session, tmp_path: Path
     assert len(report["block_stability"]) == 3
     saved = json.loads((tmp_path / "validation" / "registry_db_validate.json").read_text())
     assert saved["cscv"]["pbo"] == report["cscv"]["pbo"]
+
+
+def test_sleeves_ensemble_of_logged_trials(session: Session, tmp_path: Path) -> None:
+    import polars as pl
+
+    from factor_investor.ensemble.sleeves import combine_sleeves, rebalance_days
+
+    member_a = run(session, tmp_path, spec(variant="a"))
+    member_b = run(session, tmp_path, spec(variant="b", cost_bps=20))
+    members = [
+        {
+            "strategy_id": "registry_db_test_v1",
+            "params": {"cost_bps": 10, "variant": "a"},
+            "weight": 0.7,
+        },
+        {
+            "strategy_id": "registry_db_test_v1",
+            "params": {"cost_bps": 20, "variant": "b"},
+            "weight": 0.3,
+        },
+    ]
+    ensemble = TrialSpec(
+        hypothesis_id="H0",
+        experiment="registry_db_test",
+        strategy_id="sleeves_v1",
+        params={"members": members, "rebalance": "monthly", "cost_bps": 10},
+        area="SE",
+        from_date=DAYS[0],
+        to_date=DAYS[-1],
+    )
+    result = run_trial(
+        ensemble, session=session, trials_dir=tmp_path, benchmarks_dir=tmp_path, allow_dirty=True
+    )
+    a = pl.read_parquet(member_a.returns_path)
+    b = pl.read_parquet(member_b.returns_path)
+    expected = combine_sleeves(
+        [a, b], [0.7, 0.3], rebalance_days(a["date"].to_list(), "monthly"), 10
+    )
+    assert result.final_value == pytest.approx(
+        1_000_000 * float((1 + expected["portfolio_return"]).product())
+    )
+    assert session.get(Trial, result.trial_id).strategy_id == "sleeves_v1"  # type: ignore[union-attr]
+
+    missing = TrialSpec(
+        **{
+            **ensemble.__dict__,
+            "params": {
+                **ensemble.params,
+                "members": [
+                    {
+                        "strategy_id": "registry_db_test_v1",
+                        "params": {"cost_bps": 10, "variant": "never_run"},
+                        "weight": 1.0,
+                    }
+                ],
+            },
+        }
+    )
+    with pytest.raises(ValueError, match="not logged"):
+        run_trial(
+            missing, session=session, trials_dir=tmp_path, benchmarks_dir=tmp_path, allow_dirty=True
+        )

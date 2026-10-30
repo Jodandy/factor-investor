@@ -250,6 +250,8 @@ Klarar testet: konkurserna sänker båda portföljernas avkastning med 2–4 pro
 
 Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (svag 2013–2020); kvartalsvis jämnare. CSCV: PBO 87 % (parametervalet är brus), bästa in-sample förlorar mot kontrollen out-of-sample i 13 %; deflaterad Sharpe 97 % med H6:s 8 försök. **Status:** inte falsifierad. Reservation: formeln är nära släkt med H2 och H5 (värdering + kvalitet), så räknat över hela familjen av liknande försök är beviset svagare än 8 försök antyder.
 
+**Andra marknader, förregistrerat 2026-10-30**: `magic_formula_{no,fi,dk,eu}_v1`, samma 8 kombinationer; omsättningsgolv som H2, börsvärdesgolv 500 M / 2 MD NOK, 50 M / 200 M EUR (Finland, Europa), 350 M / 1,4 MD DKK; kontroller `h0_magic_formula_universe_{no,fi,dk,eu}_v1` (likavikt över samma universum, samma rebalansering och golv); period 2008-12–2026.
+
 ---
 
 ## H7 — Värdekomposit
@@ -270,6 +272,22 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 - **behålla hårt utan exits** sämst (9,9 %/år).
 
 Värdekompositen är den strategi där stops hjälper mest: den har störst drawdown utan dem.
+
+**Andra marknader, förregistrerat 2026-10-30**: `value_composite_{no,fi,dk,eu}_v1`, samma regler utan timing; exit {ingen, stop 20 %, 30 %} × sälj på rank {ja, nej} = 6 per marknad (prövar också om stops hjälper värdekompositen även där); omsättningsgolv som H2 i respektive marknad; kontroll `h0_liquid_equal_weight_{no,fi,dk,eu}`.
+
+---
+
+## H8 — Värde/kvalitet och momentum i separata delar
+
+**Idé**: Kör en värde- eller kvalitetsstrategi och en momentumstrategi sida vid sida med fasta andelar av kapitalet (`sleeves_v1`), ombalanserade kvartalsvis. Strategierna har haft sina bra år vid olika tidpunkter och kan komplettera varandra.
+
+**Förregistrering 2026-10-30** (SE 2008–2026, 10 bps på flyttade pengar mellan delarna; medlemmarna är redan loggade försök):
+- värdedel: vanlig H2 (`h2_daily_v1`, ingen timing, ingen exit, sälj på rank) eller vanlig värdekomposit (`value_composite_daily_v1`, samma)
+- momentumdel: vanlig momentum (`momentum_daily_v1`, samma) eller momentum med utbrott 50 d + stop 20 % + bara exits säljer
+- momentumandel: 30 % eller 50 %
+- 2 × 2 × 2 = 8. Obs: utbrott + stop är den bästa momentumvarianten från ablationen, så den delen bär urvalsbias; vanlig momentum finns med som jämförelse.
+
+**Bedöms** mot värdedelen ensam (förbättras Sharpe och drawdown?) och mot kontrollen `h0_liquid_equal_weight_se` (kvartal).
 
 ---
 

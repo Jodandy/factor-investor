@@ -977,3 +977,13 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 - **Acceptance:** daily mode with an exit that never triggers is bit-identical to the plain strategy (weights normalized by the engine's own function); a two-year run on prices truncated at T gives identical trades; a trend filter changes the trades (buys between rebalancing dates).
 
 **Not yet:** tranches and pyramiding, sizing other than equal weight, fundamentals-based exits, volume components (accumulation), order reasons in the trade log.
+
+---
+
+## 2026-10-30 | Ensembles as sleeves of logged trials (`sleeves_v1`)
+
+**Decision:** an ensemble (ARCHITECTURE §5.3) is a trial whose strategy is `sleeves_v1` (`ensemble/sleeves.py`): members given by strategy id, parameters and weight; each must already be a completed trial with the ensemble's area and period, and its daily returns (including its own costs) are combined. The sleeves drift with their returns and are reset to their weights on the last trading day of each period (monthly, quarterly or annual); the money moved pays `cost_bps` (sells and buys both count). Logged and counted like any trial; the source hash covers the sleeves module.
+
+**Known simplification:** holdings that two sleeves share are not netted (each sleeve trades as if alone), which slightly overstates costs.
+
+**Alternatives considered:** one engine run with a combined target portfolio (needs netting of daily-clock keep sets across members; more code for a small cost difference); averaging member returns without rebalancing (weights drift without limit).

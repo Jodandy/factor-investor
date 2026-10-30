@@ -1,0 +1,43 @@
+# H6 magic formula in EU, pre-registered 2026-10-30:
+# as magic_formula_v1 with turnover >= 100,000 EUR a day and market cap >= 50,000,000 / 200,000,000 EUR.
+# Never edit after a logged run: create _v2 instead.
+id: magic_formula_eu_v1
+hypothesis: H6
+description: Magic formula (EV/EBIT and pretax ROIC, equal rank weight), Sweden
+area: EU
+rebalance:
+  search:
+  - annual
+  - quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000 and sector_id != 1 and sector_id != 10
+- component: expression_v1
+  params:
+    expression:
+      search:
+        mcap_small: market_cap >= 50000000
+        mcap_large: market_cap >= 200000000
+scoring:
+  min_coverage: 1.0
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: roic_pretax
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n:
+      search:
+      - 20
+      - 30
+    sell_rank: 1.0
