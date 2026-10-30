@@ -9,7 +9,8 @@ Daily mode (any timing or exit component, or sell_on_rank false):
   bought (1/slots each, rank order, up to the free slots); the others wait on
   a watchlist. Kept holdings are resized to 1/slots, as without daily mode.
 - every other trading day, after the day's trades: positions track their
-  entry price and highest price; exits close positions; watchlist names whose
+  entry price and highest price; exits close positions, and so do exit
+  signals that are off (e.g. price below the Ichimoku cloud); watchlist names whose
   signals turn on fill free slots. Untouched positions are kept as they are
   (no daily resizing). A name closed by an exit is not bought again before the
   next rebalancing.
@@ -89,7 +90,10 @@ class PipelineStrategy(Strategy):
         assert isinstance(self.portfolio, PortfolioComponent)
         self.timing = [build_component(s.component, s.params) for s in config.timing]
         self.exits = [build_component(s.component, s.params) for s in config.exits]
-        self.daily_mode = bool(self.timing or self.exits or not config.sell_on_rank)
+        self.exit_signals = [build_component(s.component, s.params) for s in config.exit_signals]
+        self.daily_mode = bool(
+            self.timing or self.exits or self.exit_signals or not config.sell_on_rank
+        )
         self._daily = daily
         # daily-mode state
         self.slots = 0
@@ -227,6 +231,12 @@ class PipelineStrategy(Strategy):
             for component in self.exits:
                 assert isinstance(component, ExitComponent)
                 closing |= component.run(frame)
+        if self.exit_signals and prices:
+            held_ids = sorted(prices)
+            view = DailyView(self.daily, as_of_date)
+            for signal in self.exit_signals:
+                assert isinstance(signal, SignalComponent)
+                closing |= set(held_ids) - signal.run(view, held_ids)
         held = set(prices)
         self.ordered -= held
         candidates = [i for i in self.watchlist if i not in held and i not in self.exited]

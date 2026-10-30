@@ -57,8 +57,9 @@ def test_daily_decisions_identical_on_prices_truncated_at_t() -> None:
     """Both runs use Swedish prices only, so both have the same calendar (the
     signal dates of repeated orders depend on the calendar)."""
     timing_and_stop = {
-        "timing": specs(("price_above_ma_v1", {"days": 200})),
+        "timing": specs(("price_above_ma_v1", {"days": 200}), ("ichimoku_v1", {"mode": "full"})),
         "exits": specs(("trailing_stop_v1", {"pct": 0.15})),
+        "exit_signals": specs(("ichimoku_v1", {"mode": "not_below_cloud"})),
     }
     full_daily = daily_prices("SE")
     frame = (
@@ -93,3 +94,14 @@ def test_timing_changes_the_trades() -> None:
     # some buys happen between rebalancing dates (watchlist names turning on)
     rebalance_days = set(plain.trades["date"].unique().to_list())
     assert set(timed.trades.filter(pl.col("action") == "buy")["date"].to_list()) - rebalance_days
+
+
+def test_exit_signal_sells_between_rebalancing_dates() -> None:
+    engine = _engine_for("SE")
+    plain = engine.run(get_strategy("h2_composite_v1").factory(H2), FROM, T)
+    cloud = engine.run(
+        strategy(exit_signals=specs(("ichimoku_v1", {"mode": "not_below_cloud"}))), FROM, T
+    )
+    rebalance_days = set(plain.trades["date"].unique().to_list())
+    sells = cloud.trades.filter(pl.col("action") == "sell")
+    assert set(sells["date"].to_list()) - rebalance_days

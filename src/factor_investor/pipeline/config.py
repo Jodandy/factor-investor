@@ -61,6 +61,8 @@ class StrategyConfig(BaseModel):
     # checked every day; with sell_on_rank false, holdings are only sold by exits.
     timing: list[ComponentSpec] = Field(default_factory=list)
     exits: list[ComponentSpec] = Field(default_factory=list)
+    # signals that must stay on for a position to be held (e.g. not below the cloud)
+    exit_signals: list[ComponentSpec] = Field(default_factory=list)
     sell_on_rank: bool = True
 
     @field_validator("id")
@@ -90,6 +92,8 @@ class StrategyConfig(BaseModel):
             spec.check(ComponentKind.SIGNAL)
         for spec in self.exits:
             spec.check(ComponentKind.EXIT)
+        for spec in self.exit_signals:
+            spec.check(ComponentKind.SIGNAL)
         return self
 
 

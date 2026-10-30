@@ -1,0 +1,74 @@
+# H7 value composite with Ichimoku (close-only), pre-registered 2026-10-30: as
+# value_composite_daily_v1 with timing none / above the cloud / all four conditions and
+# exit when below the cloud no / yes; sell on rank. 3 x 2 = 6 configurations.
+# Never edit after a logged run: create _v2 instead.
+id: value_composite_ichimoku_v1
+hypothesis: H7
+description: Value composite with Ichimoku timing and cloud exit
+area: SE
+rebalance: quarterly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  min_coverage: 0.75
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: ev_ebit
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pe_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: pb_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: ps_ratio
+      higher_is_better: false
+      non_positive_is_worst: true
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: fcf_yield
+    weight: 1
+  - component: percentile_v1
+    params:
+      metric: dividend_yield
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 25
+    sell_rank: 1.5
+timing:
+  search:
+    none: []
+    above_cloud:
+    - component: ichimoku_v1
+      params:
+        mode: above_cloud
+    full:
+    - component: ichimoku_v1
+      params:
+        mode: full
+exits: []
+sell_on_rank: true
+exit_signals:
+  search:
+    none: []
+    below_cloud:
+    - component: ichimoku_v1
+      params:
+        mode: not_below_cloud

@@ -319,6 +319,20 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 ---
 
+## H9 — Trendföljning med Ichimoku
+
+**Idé**: Köp aktier i stark trend när trenden bekräftas och sälj när den bryts, utan fundamenta. Ichimoku (molnet) som signal; kandidaterna är de med starkast 12-1-månaders momentum.
+
+**Motivering**: Trender i enskilda aktier tenderar att fortsätta (momentum); en tydlig inträdes- och utträdesregel kan fånga trenderna och kapa krascherna som vanlig momentum drabbas av (se ablationen: utbrott + stop förbättrade momentum).
+
+**Förregistrering 2026-10-30**: `config/strategies/trend_ichimoku_v1.yaml`, SE 2008–2026, omsättning ≥ 1 MSEK/dag, månadsvis kandidatlista = topp N efter momentum, köp när Ichimoku-signalen är på, sälj när kursen stänger under molnet (ingen försäljning på rank). Ichimoku på stängningskurser (totalavkastningsindex; varianten utan högsta/lägsta kurs). Parameterrum (4): signal {över molnet, alla fyra villkor} × antal {20, 40}. Kontroll `h0_liquid_equal_weight_monthly_v1`. Jämförs också med momentum med utbrott + stop (`momentum_daily_v1`).
+
+**Dessutom**: `value_composite_ichimoku_v1` (H7): värdekompositen med Ichimoku-timing {ingen, över molnet, alla fyra} × sälj under molnet {nej, ja} (6), jämförs med 200-dagars medel och utbrott i den tidigare ablationen.
+
+**Falsifieras om**: trendsystemet inte slår kontrollen, eller bara i enstaka tidsblock.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.

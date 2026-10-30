@@ -1,0 +1,44 @@
+# H9 trend following with Ichimoku (close-only), pre-registered 2026-10-30. Liquid SE
+# (turnover >= 1 MSEK a day); each month-end the top N by 12-1 momentum are candidates,
+# bought when the Ichimoku signal is on (above the cloud / all four conditions), held until
+# the close falls below the cloud (no selling on rank). 2 x 2 = 4 configurations.
+# Never edit after a logged run: create _v2 instead.
+id: trend_ichimoku_v1
+hypothesis: H9
+description: 'Trend following: top N by 12-1 momentum enter on an Ichimoku signal, exit below the cloud'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+scoring:
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: momentum_12_1m
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n:
+      search:
+      - 20
+      - 40
+    sell_rank: 1.0
+timing:
+  search:
+    above_cloud:
+    - component: ichimoku_v1
+      params:
+        mode: above_cloud
+    full:
+    - component: ichimoku_v1
+      params:
+        mode: full
+exit_signals:
+- component: ichimoku_v1
+  params:
+    mode: not_below_cloud
+sell_on_rank: false
