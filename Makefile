@@ -1,4 +1,4 @@
-.PHONY: check lint format test typecheck install dev db-up db-down db-migrate clean help
+.PHONY: check lint format test test-slow typecheck install dev db-up db-down db-migrate clean help
 .PHONY: sync-all sync-raw sync-derived sync-update
 
 # Default target
@@ -12,7 +12,8 @@ help:
 	@echo "  make lint       - Run ruff linter"
 	@echo "  make format     - Format code with ruff"
 	@echo "  make typecheck  - Run mypy type checker"
-	@echo "  make test       - Run pytest"
+	@echo "  make test       - Run pytest (without slow tests)"
+	@echo "  make test-slow  - Run the slow database tests (after data, PIT or factor changes)"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-up      - Start PostgreSQL container"
@@ -50,6 +51,9 @@ typecheck:
 
 test:
 	uv run pytest
+
+test-slow:
+	uv run pytest -m slow
 
 db-up:
 	docker compose up -d

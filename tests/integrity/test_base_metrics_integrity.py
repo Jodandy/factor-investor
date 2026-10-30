@@ -20,6 +20,10 @@ from factor_investor.factors.base_metrics import (
 )
 from factor_investor.pit import as_of
 
+# Slow (checks the built base metrics, ~4 min): excluded by default; run with `pytest -m slow`
+# (make test-slow) after changes to the data, PIT or factor layer.
+pytestmark = pytest.mark.slow
+
 
 class TestTemporalIntegrity:
     """Test that base_metrics has no lookahead bias."""

@@ -120,9 +120,12 @@ addopts = [
     "-ra",
     "-q",
     "--strict-markers",
+    # slow tests run explicitly: pytest -m slow (make test-slow)
+    "-m",
+    "not slow",
 ]
 markers = [
-    "slow: marks tests as slow",
+    "slow: slow database tests, excluded by default; run with -m slow",
     "integration: marks tests requiring database",
     "integrity: marks lookahead/survivorship bias tests",
 ]

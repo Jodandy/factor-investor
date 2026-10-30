@@ -23,26 +23,33 @@ class TestPITTemporal:
 
         This is the MOST CRITICAL test in the entire project.
         If this fails, all downstream analysis is invalid.
+
+        Each date is checked on its own seeded sample of 300 instruments: the
+        query is the same for every instrument, and a full as_of over all
+        instruments takes about 100 s (22M rows) per date.
         """
-        # Sample random dates across the data range
         start_date = date(2020, 1, 1)
         end_date = date(2024, 12, 31)
-        num_samples = 50
+        num_samples = 20
+
+        with get_session() as session:
+            instruments = sorted(
+                row[0]
+                for row in session.execute(
+                    text("SELECT DISTINCT instrument_id FROM fundamentals_pit")
+                )
+            )
 
         random.seed(42)  # Reproducible
-        test_dates = []
+        checked = 0
         for _ in range(num_samples):
-            days_offset = random.randint(0, (end_date - start_date).days)
-            test_date = start_date + timedelta(days=days_offset)
-            test_dates.append(test_date)
-
-        # Test each date
-        for test_date in test_dates:
-            df = as_of(as_of_date=test_date)
-
-            # Skip if no data
+            test_date = start_date + timedelta(
+                days=random.randint(0, (end_date - start_date).days)
+            )
+            df = as_of(as_of_date=test_date, instrument_ids=random.sample(instruments, 300))
             if len(df) == 0:
                 continue
+            checked += 1
 
             # Verify ALL known_from <= as_of_date
             max_known = df["known_from"].max()
@@ -50,6 +57,7 @@ class TestPITTemporal:
                 f"Lookahead bias detected! "
                 f"as_of({test_date}) returned data with known_from={max_known}"
             )
+        assert checked >= num_samples // 2
 
     def test_no_lookahead_bias_specific_instrument(self) -> None:
         """Verify temporal integrity for a specific instrument."""

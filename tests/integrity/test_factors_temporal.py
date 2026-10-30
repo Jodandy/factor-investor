@@ -19,6 +19,10 @@ import pytest
 
 from factor_investor.factors.queries import clear_cache, get_factor
 
+# Slow (each get_factor call reads all PIT rows, ~100 s): excluded by default; run with `pytest -m slow`
+# (make test-slow) after changes to the data, PIT or factor layer.
+pytestmark = pytest.mark.slow
+
 
 class TestFactorsTemporal:
     """Temporal integrity tests for factor calculations."""
