@@ -1,0 +1,40 @@
+# H0 control for H11 v2, pre-registered 2026-10-30: equal weight over all liquid SE names passing
+# the H11 v2 quality gate (no valuation rule), monthly. Isolates what the valuation rules add.
+# Never edit after a logged run: create _v2 instead.
+id: h0_quality_gate_v1
+hypothesis: H0
+description: 'Control for H11 v2: equal weight over every liquid SE name passing the quality gate, monthly'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and revenue_growth_1y >= -0.10 and pe_ratio > 0 and operating_margin
+      > 0 and net_debt_to_ebit < 3
+- component: history_filter_v1
+  params:
+    metric: operating_margin
+    stat: min
+    years: 5
+    min_observations: 5
+    min_value: 0.0
+- component: history_filter_v1
+  params:
+    metric: roic
+    stat: median
+    years: 5
+    min_observations: 5
+    min_value:
+      search:
+        basic: 0.08
+        strict: 0.15
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0

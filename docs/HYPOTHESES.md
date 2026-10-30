@@ -449,6 +449,7 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 - `valband_both_v2`: uppsida ≥ {5, 10 %} och implicit avkastning ≥ {6, 8 %}, behåll medan båda säljreglerna klarar sig (16)
 - Storlek som v1 (× 2). 40 konfigurationer. Period 2011-01-01 – 2026-10-27 (5 års historik kräver data från 2006). Den strikta "båda"-varianten släpper bara igenom 1–10 bolag.
 - Falsifieras om ingen familj slår kontrollen i median över samma period. Jämförs även med värdekompositen över samma period.
+- Tillagd kontroll (förregistrerad 2026-10-30, före analys av vad grinden ensam ger): `h0_quality_gate_v1`, likavikt över alla likvida bolag som klarar kvalitetsgrinden (bas/strikt), månadsvis, 2011–2026. Visar vad värderingsreglerna tillför utöver grinden. Likvid kontroll körs om från 2011 för CSCV över samma period.
 
 ---
 
