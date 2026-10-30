@@ -426,6 +426,21 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 
 **Falsifieras om**: ingen av de tre familjerna slår kontrollen i median, eller resultatet bara håller i enstaka tidsblock. Jämförs också med värdekompositen (H7), som är närmast släkt (värdering mot andra bolag i stället för mot egen historik).
 
+**Resultat 2026-10-30 (trials 852–877, SE 2008-01 – 2026-10, kontroll 9,5 % CAGR): falsifierad.** Ingen av 26 konfigurationer slår kontrollen.
+
+| Familj | Konfig. | Median mot kontroll | Median Sharpe | Median max DD | Tidsblock som slår kontrollen |
+|---|---|---|---|---|---|
+| Absolut (implicit avkastning) | 6 | −1,4 %/år (bäst −0,8 %) | 0,37 | −50 % | 3/8 |
+| Relativ (egen multipelhistorik) | 12 | −5,2 %/år | 0,21 | −67 % | 3/8 |
+| Båda | 8 | −6,9 %/år | 0,15 | −52 % | 2/8 |
+
+- Lägre tröskel är bättre i båda familjerna (uppsida 15 % > 40 %, implicit avkastning 10 % > 15 %): ju billigare enligt måtten, desto sämre.
+- Storleksregeln spelar nästan ingen roll; oftast klarar minst 20 bolag urvalet.
+- Säljregeln "till övre bandet" är marginellt bättre än "till mitten".
+- Diagnos (relativ, 2024: −36 % mot kontrollens +5 %): portföljen fylldes av fallande förlustbolag (Viaplay, SolTech, Intervacc, Clinical Laserthermia, Mendus, Starbreeze). P/S och P/B är positiva även för förlustbolag och ser billiga ut mot egen historik när kursen kollapsar; snittet över giltiga multiplar kräver inte vinst. Knivgarden (omsättningstillväxt) fångar inte detta.
+- "Båda" är sämst: kombinationen väljer bolag som är billiga både mot historiken och mot DCF:en, alltså oftast de som fallit mest.
+- Jämfört med värdekompositen (H7, värdering mot andra bolag med kvalitetsfilter) är egen-historik-värdering utan lönsamhetskrav klart sämre i Sverige.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
