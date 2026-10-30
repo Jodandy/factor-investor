@@ -74,6 +74,34 @@ def combine_scores(blocks: list[tuple[pl.DataFrame, float]], min_coverage: float
     ).cast(SCORE_SCHEMA)  # type: ignore[arg-type]
 
 
+def let_winners_run(selection: pl.DataFrame, holdings: pl.DataFrame) -> TargetPortfolio:
+    """Target for resize_holdings false. Selected names already held keep their
+    weight (in `keep`, so the engine leaves them alone); names held but not
+    selected are sold; new names get their weight from the selection, scaled
+    down so together they spend at most the free share of the portfolio
+    (cash plus what is sold)."""
+    held = dict(holdings.select("instrument_id", "weight").rows())
+    kept = {i: held[i] for i in selection["instrument_id"].to_list() if i in held}
+    new = selection.filter(~pl.col("instrument_id").is_in(list(kept)))
+    free = max(0.0, 1.0 - sum(kept.values()))
+    wanted = float(new["weight"].sum())
+    if wanted > free:
+        new = new.with_columns(pl.col("weight") * (free / wanted))
+    return TargetPortfolio(
+        pl.concat(
+            [
+                pl.DataFrame(
+                    {"instrument_id": list(kept), "weight": list(kept.values())},
+                    schema=WEIGHT_SCHEMA,
+                ),
+                new.select("instrument_id", "weight").cast(WEIGHT_SCHEMA),  # type: ignore[arg-type]
+            ]
+        ),
+        keep=frozenset(kept),
+        normalize=False,
+    )
+
+
 class PipelineStrategy(Strategy):
     def __init__(self, config: StrategyConfig, daily: DailyPrices | None = None) -> None:
         from factor_investor.benchmarks.run import AREAS
@@ -179,6 +207,11 @@ class PipelineStrategy(Strategy):
         # a capped portfolio (weights summing to less than 1) keeps its cash
         fully_invested = float(weights["weight"].sum()) >= 1 - 1e-9 if len(weights) else True
         if not self.daily_mode:
+            if not self.config.resize_holdings and current_holdings is not None:
+                target = let_winners_run(weights, current_holdings)
+                return TargetPortfolio(
+                    target.holdings, metadata=metadata, keep=target.keep, normalize=False
+                )
             return TargetPortfolio(weights, metadata=metadata, normalize=fully_invested)
 
         rank = dict(composite.drop_nulls("score").select("instrument_id", "score").rows())

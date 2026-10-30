@@ -10,6 +10,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date
+from itertools import pairwise
 from typing import Any
 
 import polars as pl
@@ -329,3 +330,41 @@ def test_valuation_pipeline_identical_with_future_data_deleted() -> None:
     with database_truncated_at_t():
         truncated = strategy.generate_signals(T, held).holdings.sort("instrument_id")
     assert_frame_equal(full, truncated, check_exact=True)
+
+
+def test_resize_holdings_false_only_opens_and_closes_positions() -> None:
+    """With resize_holdings false a position is bought once and later sold in
+    full (never topped up or trimmed); the plain strategy resizes every month."""
+    from factor_investor.search.registry import _engine_for
+
+    clear_caches()
+    plain = pipeline(
+        [
+            {
+                "component": "expression_v1",
+                "params": {"expression": "turnover >= 1000000 and pe_ratio > 0 and pe_ratio < 10"},
+            }
+        ],
+        [
+            {
+                "component": "percentile_v1",
+                "params": {"metric": "pe_ratio", "higher_is_better": False},
+                "weight": 1,
+            }
+        ],
+        {"component": "top_n_hysteresis_v1", "params": {"top_n": 10, "sell_rank": 2.0}},
+    )
+    let_run = PipelineStrategy(plain.config.model_copy(update={"resize_holdings": False}))
+    engine = _engine_for("SE")
+
+    def alternates(trades: pl.DataFrame) -> bool:
+        actions = trades.sort("date").group_by("instrument_id", maintain_order=True).agg("action")
+        return all(
+            all(a != b for a, b in pairwise(seq)) and seq[0] == "buy"
+            for seq in actions["action"].to_list()
+        )
+
+    run = engine.run(let_run, date(2016, 1, 1), date(2017, 12, 31))
+    assert len(run.trades) > 20
+    assert alternates(run.trades)
+    assert not alternates(engine.run(plain, date(2016, 1, 1), date(2017, 12, 31)).trades)

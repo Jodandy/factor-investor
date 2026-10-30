@@ -1,0 +1,77 @@
+# quality_cheap_hold_v1: H12 (docs/HYPOTHESES.md), pre-registered 2026-10-30. Buy: liquid SE names
+# passing the H11 v2 quality gate (basic/strict) with owner-earnings implied return >= 6/8/10%,
+# best 20 by implied return, 5% each (rest cash). Hold while quality lasts: P/E > 0, operating
+# margin > 0, net debt/EBIT < 3, 5-year median ROIC >= 5%; optionally also sold when the implied
+# return turns negative. Weights reset monthly, or winners keep their weight. 24 configurations.
+# Never edit after a logged run: create _v2 instead.
+id: quality_cheap_hold_v1
+hypothesis: H12
+description: 'H12: buy quality when the owner-earnings implied return is high, hold while quality lasts'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and revenue_growth_1y >= -0.10 and pe_ratio > 0 and operating_margin
+      > 0 and net_debt_to_ebit < 3
+- component: history_filter_v1
+  params:
+    metric: operating_margin
+    stat: min
+    years: 5
+    min_observations: 5
+    min_value: 0.0
+- component: history_filter_v1
+  params:
+    metric: roic
+    stat: median
+    years: 5
+    min_observations: 5
+    min_value:
+      search:
+        basic: 0.08
+        strict: 0.15
+- component: owner_earnings_irr_filter_v1
+  params:
+    min_irr:
+      search:
+      - 0.06
+      - 0.08
+      - 0.1
+hold:
+  search:
+    never_on_valuation:
+    - &id001
+      component: expression_v1
+      params:
+        expression: pe_ratio > 0 and operating_margin > 0 and net_debt_to_ebit < 3
+    - &id002
+      component: history_filter_v1
+      params:
+        metric: roic
+        stat: median
+        years: 5
+        min_observations: 3
+        min_value: 0.05
+    absurd_valuation:
+    - *id001
+    - *id002
+    - component: owner_earnings_irr_filter_v1
+      params:
+        min_irr: 0.0
+scoring:
+  blocks:
+  - component: owner_earnings_irr_score_v1
+    params: {}
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 20
+    sell_rank: 1.0
+    max_weight: 0.05
+resize_holdings:
+  search:
+    reset_monthly: true
+    let_winners_run: false

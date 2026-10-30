@@ -999,3 +999,15 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 - **Capped targets**: a target whose weights sum to less than 1 keeps its cash in plain and daily mode (`top_n_capped_v1`).
 
 **Tests:** hold rules keep names the buy rule alone would sell and drop those that fail the hold rule (real data); a pipeline with both valuation filters, both scores and a hold rule gives identical targets with every row and annual report after T deleted; logged results and all 53 logged strategy hashes unchanged.
+
+---
+
+## 2026-10-30 | Let winners run (`resize_holdings: false`)
+
+**Decision** (for H12): a strategy may set `resize_holdings: false`. On a rebalancing date, held names that stay in the selection keep their position untouched (the engine's `keep`); held names outside it are sold; new names get their slot weight, scaled down so together they spend at most the free share of the portfolio (cash plus what is sold). The default (true) resets every kept position to its target weight, as before.
+
+**Rationale**: "hold the winners harder" means both a sell rule tied to the business (hold rules) and not trimming a position because it has grown; the monthly reset to equal weight sells part of every winner.
+
+**Rejected**: trimming only above a cap (one more parameter with no hypothesis behind it yet); allowing it with the daily clock (not needed for H12; refused by the config for now).
+
+**Tests**: kept names untouched and new buys sharing the free cash (unit); on real data a position is only ever opened and closed in full, while the plain strategy resizes (engine).

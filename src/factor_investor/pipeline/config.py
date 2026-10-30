@@ -67,6 +67,9 @@ class StrategyConfig(BaseModel):
     # signals that must stay on for a position to be held (e.g. not below the cloud)
     exit_signals: list[ComponentSpec] = Field(default_factory=list)
     sell_on_rank: bool = True
+    # false: held names that stay in the selection keep their weight (winners are
+    # not trimmed); new buys get their slot weight, scaled down to the free cash
+    resize_holdings: bool = True
 
     @field_validator("id")
     @classmethod
@@ -99,6 +102,10 @@ class StrategyConfig(BaseModel):
             spec.check(ComponentKind.EXIT)
         for spec in self.exit_signals:
             spec.check(ComponentKind.SIGNAL)
+        if not self.resize_holdings and (
+            self.timing or self.exits or self.exit_signals or not self.sell_on_rank
+        ):
+            raise ValueError("resize_holdings false is only supported without the daily clock")
         return self
 
 

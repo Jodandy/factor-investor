@@ -467,6 +467,22 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 
 ---
 
+## H12 — Köp kvalitet billigt, behåll så länge kvaliteten håller
+
+**Idé** (användarens, efter H11): fånga verkliga vinnare medan de är billiga i absolut mening (som Apple 2014) och håll dem hårt: sälj när verksamheten försämras, inte när de blivit fullt värderade, och låt vinnarna växa i portföljen i stället för att trimma dem varje månad.
+
+**Motivering**: H11 v2 visade att absolut värdering inom kvalitetsgrinden ger samma avkastning med lägre drawdown, men säljregeln "sälj vid normal värdering" säljer vinnare när de omvärderas. Om vinnarnas fortsatta uppgång är källan till avkastningen bör en ren kvalitetsbaserad säljregel och oförändrade vikter ge mer.
+
+**Förregistrering 2026-10-30** (SE 2011-01-01 – 2026-10-27, månadsvis, `quality_cheap_hold_v1`):
+- Köp: likvida bolag som klarar H11 v2:s kvalitetsgrind ({bas, strikt}) och har implicit avkastning ≥ {6, 8, 10 %}; de 20 med högst implicit avkastning, 5 % var, resten kassa.
+- Behåll så länge kvaliteten håller: P/E > 0, rörelsemarginal > 0, nettoskuld/EBIT < 3, median-ROIC 5 år ≥ 5 %. Värderingsutgång {aldrig, bara vid negativ implicit avkastning}.
+- Vikter {nollställs varje månad, vinnare behåller sin vikt (nya köp delar ledig kassa, högst 5 %)}.
+- 2 × 3 × 2 × 2 = 24 konfigurationer. Jämförs med likvid kontroll (2011), enbart kvalitetsgrinden och H11 v2 absolut (säljer vid normal värdering).
+- Diagnostik: innehavstid och hur stor del av avkastningen de 5 bästa innehaven står för. Bästa kandidater körs även i konkursstresstestet (Börsdata saknar avnoterade bolag; köp-och-behåll är extra känsligt för det).
+- **Falsifieras om**: H12 i median inte slår H11 v2 absolut eller enbart kvalitetsgrinden, eller om "vinnare behåller sin vikt" inte är bättre än nollställning i median.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.
