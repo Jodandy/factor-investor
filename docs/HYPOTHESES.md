@@ -480,6 +480,7 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 - 2 × 3 × 2 × 2 = 24 konfigurationer. Jämförs med likvid kontroll (2011), enbart kvalitetsgrinden och H11 v2 absolut (säljer vid normal värdering).
 - Diagnostik: innehavstid och hur stor del av avkastningen de 5 bästa innehaven står för. Bästa kandidater körs även i konkursstresstestet (Börsdata saknar avnoterade bolag; köp-och-behåll är extra känsligt för det).
 - **Falsifieras om**: H12 i median inte slår H11 v2 absolut eller enbart kvalitetsgrinden, eller om "vinnare behåller sin vikt" inte är bättre än nollställning i median.
+- Stresstest (förregistrerat 2026-10-30 efter körningarna, före stresskörningarna): bästa konfiguration per viktregel (trials 959, 960: bas, 8 %, värderingsutgång vid negativ avkastning), likvid kontroll och enbart kvalitetsgrinden (bas) under `bankruptcy` {2, 5 %} × frö {1, 2}, 2011–2026, samma uppsättning som H2. Klarar testet om överavkastningen mot den likvida kontrollen (samma scenario) i median är kvar på minst hälften av den ostressade.
 
 ---
 
