@@ -317,6 +317,8 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 Överavkastningarna mot kontrollen är okorrelerade (H2 mot momentum 0,04–0,11) eller negativt korrelerade (värdekomposit mot momentum −0,23 till −0,43), så delarna kompletterar varandra. Men avkastningarna i sig är starkt korrelerade (0,64–0,81, alla är svenska aktier), och vanlig momentum har för liten egen fördel: blandningen sänker avkastningen. Med momentum med utbrott + stop blir Sharpe bättre (0,75–0,81 mot 0,62–0,65) och drawdown mindre till nästan samma avkastning, men den momentumvarianten är vald i efterhand. Stops direkt på värdedelen (H7: 16–18 %/år, Sharpe ~0,8) gav liknande riskminskning med högre avkastning. **Slutsats:** delarna kompletterar varandra på papperet, men ingen tydlig vinst jämfört med en värdestrategi med stops.
 
+**Värdekomposit + CANSLIM, förregistrerat 2026-10-30** (experiment `h8_value_canslim_se`): värdedel {vanlig värdekomposit, värdekomposit med stop 20 % där bara exits säljer} + CANSLIM-del (A ≥ 25 %, lika vikt bland de som klarar urvalet, ingen exit) med andelar {50/50, 70/30}, kvartalsvis. 4 kombinationer. Obs: båda delarna valdes efter att deras resultat och den negativa korrelationen (−0,24 i överavkastning) var kända, så detta visar vad kombinationen hade gett, inte ett oberoende test.
+
 ---
 
 ## H9 — Trendföljning med Ichimoku
