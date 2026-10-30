@@ -348,6 +348,20 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 **Falsifieras om**: medianen över parameterrummet inte slår kontrollen, eller bara i enstaka tidsblock.
 
+**Resultat 2026-10-30** (trials 753–760), mot kontrollen (månadsvis likavikt 9,5 %/år):
+
+| Vikt per bolag | A ≥ | Exit | CAGR | Mot kontroll | Block | Sharpe | Volatilitet |
+|---|---|---|---|---|---|---|---|
+| lika bland de som klarar urvalet | 25 % | ingen | 18,9 % | +9,4 % | 88 % | 0,61 | 27 % |
+| lika bland de som klarar urvalet | 15 % | ingen | 17,0 % | +7,6 % | 62 % | 0,58 | 26 % |
+| lika bland de som klarar urvalet | 25 / 15 % | stop 8 % | 12,1 / 11,6 % | +2,6 / +2,1 % | 62 / 50 % | 0,42 | 23–24 % |
+| högst 10 %, resten kassa | båda | ingen / stop | 3,5–5,9 % | −3,6 till −6,0 % | 12–38 % | 0,14–0,30 | 11–13 % |
+
+- Urvalet väljer aktier som gått bra: helt investerat i dem slår det kontrollen klart. Men det är ofta 1–10 aktier (100 % i en aktie i juni 2010, helt i kassa i juni 2013), så resultatet vilar på få innehav och volatiliteten är hög; Sharpe (0,58–0,61) är inte bättre än värdekompositen med stops (~0,8).
+- Med högst 10 % per bolag ligger portföljen till stor del i kassa och slår inte kontrollen.
+- O'Neils stop loss på 8 % kostar 5–7 %/år: den säljer vinnare i normala svängningar, och en såld aktie köps inte tillbaka före nästa månadsskifte.
+- **Status:** delvis. Valet av aktier fungerar, men som portfölj är strategin för koncentrerad för att resultatet ska vara robust. M (marknadsriktning) och fler kandidater (lösare L eller N) är naturliga nästa steg; varje variant räknas som nya försök.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
