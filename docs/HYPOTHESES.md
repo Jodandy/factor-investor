@@ -331,6 +331,11 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 **Falsifieras om**: trendsystemet inte slår kontrollen, eller bara i enstaka tidsblock.
 
+**Resultat 2026-10-30** (trials 743–752):
+- **H9 trendsystem**: 6,0–6,8 %/år, −2,7 till −3,5 %/år mot kontrollen (månadsvis likavikt 9,5 %), slår den i 3 av 8 block, Sharpe 0,33–0,51, drawdown −18 till −25 %. Sämre än momentum med utbrott + stop (14,0 %, Sharpe 0,84). **Falsifierad** i denna form. Troligen delvis tomma platser: en position som säljs under molnet ersätts bara från kandidatlistan (månadens topp N som inte redan ägs), och en såld aktie köps inte tillbaka före nästa månadsskifte, så kapital står i kassa.
+- **Värdekomposit + Ichimoku**: som timing (över molnet / alla fyra) 13,8 %/år, −1,3 %/år mot vanlig värdekomposit, drawdown −48 till −50 % mot −54 %: samma mönster som 200-dagars medel och utbrott (timing kostar värdestrategier avkastning). Med försäljning under molnet 4,4–5,5 %/år och drawdown −9 till −10 %: positionerna säljs ofta och platserna fylls först vid nästa kvartalsskifte, så portföljen ligger till stor del i kassa; låg drawdown speglar kassan, inte bättre aktieval.
+- Vanlig värdekomposit (trial 747) gav exakt samma resultat som trial 629 under en annan strategifil (determinism).
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
