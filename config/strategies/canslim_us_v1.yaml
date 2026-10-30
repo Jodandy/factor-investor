@@ -1,0 +1,51 @@
+# H10 CANSLIM in US, pre-registered 2026-10-30: as canslim_v1 with turnover >= 100,000 USD a day.
+# Never edit after a logged run: create _v2 instead.
+id: canslim_us_v1
+hypothesis: H10
+description: CANSLIM screen ranked by relative strength, at most 10 names, monthly
+area: US
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000
+- component: percentile_filter_v1
+  params:
+    metric: momentum_12_1m
+    min_percentile: 0.8
+- component: expression_v1
+  params:
+    expression: profit_growth_1y >= 0.25 and roe >= 0.17 and distance_52w_high >= -0.15
+- component: history_filter_v1
+  params:
+    metric: profit_growth_1y
+    stat: median
+    years: 3
+    min_observations: 3
+    min_value:
+      search:
+      - 0.25
+      - 0.15
+scoring:
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: momentum_12_1m
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 10
+    sell_rank: 1.0
+    max_weight:
+      search:
+        equal_among_passing: 1.0
+        cap_10pct: 0.1
+exits:
+  search:
+    none: []
+    stop8:
+    - component: stop_loss_v1
+      params:
+        pct: 0.08

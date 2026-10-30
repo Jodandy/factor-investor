@@ -378,6 +378,10 @@ Kombinationen är bättre än båda delarna var för sig: avkastningen ligger ö
 - O'Neils stop loss på 8 % kostar 5–7 %/år: den säljer vinnare i normala svängningar, och en såld aktie köps inte tillbaka före nästa månadsskifte.
 - **Status:** delvis. Valet av aktier fungerar, men som portfölj är strategin för koncentrerad för att resultatet ska vara robust. M (marknadsriktning) och fler kandidater (lösare L eller N) är naturliga nästa steg; varje variant räknas som nya försök.
 
+**Andra marknader, förregistrerat 2026-10-30**: `canslim_{no,fi,dk,eu,us}_v1`, exakt samma regler och 8 kombinationer, omsättningsgolv som tidigare per marknad; kontroller `h0_liquid_equal_weight_monthly_{no,fi,dk,eu,us}_v1`. Urvalet släpper igenom 0–7 bolag i Norge, Finland och Danmark (ofta inga: mest kassa, svagt test), men fyller alla 10 platser i Europa och USA (de meningsfulla testerna). USA: endast bolag som är noterade i dag.
+
+**Kombinationen värdekomposit + CANSLIM i samma marknader** (H8, experiment `h8_value_canslim_{no,fi,dk,eu,us}`): samma 4 kombinationer som i Sverige, med marknadens egna delar. Eftersom kombinationen valdes på svenska resultat är detta det närmaste ett oberoende test av den. Värdekompositen i USA (`value_composite_us_v1`, 6 kombinationer som i övriga marknader) körs först för att delen ska finnas.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)

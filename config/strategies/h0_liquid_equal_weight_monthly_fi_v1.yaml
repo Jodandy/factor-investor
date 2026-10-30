@@ -1,0 +1,21 @@
+# H0 control in FI: equal weight over the liquid universe, monthly. Pre-registered 2026-10-30.
+# Never edit after a logged run: create _v2 instead.
+id: h0_liquid_equal_weight_monthly_fi_v1
+hypothesis: H0
+description: Equal weight, investable FI with turnover >= 100,000 EUR/day, monthly (control)
+area: FI
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 100000
+scoring:
+  blocks:
+  - component: constant_v1
+    weight: 1
+portfolio:
+  component: top_n_hysteresis_v1
+  params:
+    top_n: 100000
+    sell_rank: 1.0
