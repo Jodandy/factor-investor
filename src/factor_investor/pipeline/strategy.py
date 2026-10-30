@@ -97,6 +97,7 @@ class PipelineStrategy(Strategy):
         self._daily = daily
         # daily-mode state
         self.slots = 0
+        self.slot_weight: float | None = None  # capped portfolios: weight per name
         self.watchlist: list[int] = []
         self.exited: set[int] = set()
         self.positions: dict[int, tuple[float, float]] = {}  # id -> (entry price, high)
@@ -157,14 +158,17 @@ class PipelineStrategy(Strategy):
             "after_filters": len(instruments),
             "scored": int(composite["score"].is_not_null().sum()),
         }
+        # a capped portfolio (weights summing to less than 1) keeps its cash
+        fully_invested = float(weights["weight"].sum()) >= 1 - 1e-9 if len(weights) else True
         if not self.daily_mode:
-            return TargetPortfolio(weights, metadata=metadata)
+            return TargetPortfolio(weights, metadata=metadata, normalize=fully_invested)
 
         rank = dict(composite.drop_nulls("score").select("instrument_id", "score").rows())
         selection = sorted(weights["instrument_id"].to_list(), key=lambda i: (-rank[i], i))
         held = set(current)
         kept = [i for i in current if i in selection] if self.config.sell_on_rank else list(current)
         self.slots = len(selection)
+        self.slot_weight = None if fully_invested else float(weights["weight"].to_list()[0])
         self.exited = set()
         candidates = [i for i in selection if i not in held]
         buys = self._entries(as_of_date, candidates, self.slots - len(kept))
@@ -191,7 +195,9 @@ class PipelineStrategy(Strategy):
         # for a full equal-weight target, so a fully invested daily-mode
         # portfolio is bit-identical to the plain strategy
         weight = (
-            Portfolio.normalize_weights(
+            self.slot_weight
+            if self.slot_weight is not None
+            else Portfolio.normalize_weights(
                 pl.DataFrame({"weight": [1 / self.slots] * self.slots}), 1.0
             )["weight"][0]
             if self.slots

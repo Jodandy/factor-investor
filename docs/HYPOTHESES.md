@@ -338,6 +338,18 @@ Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem ma
 
 ---
 
+## H10 — CANSLIM
+
+**Idé**: William O'Neils urval: starkt växande vinster (C, A), nära nya toppar (N), ledare i relativ styrka (L), i en stigande marknad (M); köp de starkaste, sälj snabbt vid förlust.
+
+**Motivering**: Kombinerar vinsttillväxt och prismomentum; bolag som både växer snabbt och leder marknaden har historiskt fortsatt uppåt.
+
+**Förregistrering 2026-10-30**: `config/strategies/canslim_v1.yaml`, SE 2008–2026, månadsvis, högst 10 innehav, rankade efter 12-1-momentum, sälj när bolaget inte längre klarar urvalet. C: vinsttillväxt (rullande 12 mån mot föregående) ≥ 25 % (inga tillförlitliga kvartalssiffror); A: 3-årsmedian av årlig vinsttillväxt ≥ {25 %, 15 %} och ROE ≥ 17 %; N: inom 15 % från 52-veckorshögsta; S: bara omsättning ≥ 1 MSEK/dag; L: topp 20 % efter momentum i det likvida universumet. I och M utelämnade (data saknas; ingen regimkomponent ännu). Urvalet släpper igenom 0–10 bolag (0 i juni 2013, 1 i juni 2010, 6–10 senare år), därför två viktregler: lika vikt bland de som klarar urvalet, eller högst 10 % per bolag och resten i kassa. Exit: ingen eller stop loss 8 % under inköpskursen. 2 × 2 × 2 = 8. Kontroll `h0_liquid_equal_weight_monthly_v1`.
+
+**Falsifieras om**: medianen över parameterrummet inte slår kontrollen, eller bara i enstaka tidsblock.
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.

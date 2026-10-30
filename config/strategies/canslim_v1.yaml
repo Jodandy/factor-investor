@@ -1,0 +1,55 @@
+# H10 — CANSLIM (William O'Neil), pre-registered 2026-10-30, Sweden. Screen, then rank by
+# relative strength (12-1 momentum); at most 10 holdings, monthly, sell when a name no
+# longer passes. C: profit growth (r12 vs previous r12) >= 25% (no reliable quarterly
+# figures); A: 3-year median annual profit growth >= 25% / 15%, ROE >= 17%; N: within 15%
+# of the 52-week high; S: turnover >= 1 MSEK a day only; L: top 20% by momentum in the
+# liquid universe; I and M left out (no data; no market-regime component yet).
+# Search: A threshold x weight per name (equal among passing / at most 10%, rest cash)
+# x exit (none / stop loss 8% below entry) = 8.
+# Never edit after a logged run: create canslim_v2 instead.
+id: canslim_v1
+hypothesis: H10
+description: CANSLIM screen ranked by relative strength, at most 10 names, monthly
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000
+- component: percentile_filter_v1
+  params:
+    metric: momentum_12_1m
+    min_percentile: 0.8
+- component: expression_v1
+  params:
+    expression: profit_growth_1y >= 0.25 and roe >= 0.17 and distance_52w_high >= -0.15
+- component: history_filter_v1
+  params:
+    metric: profit_growth_1y
+    stat: median
+    years: 3
+    min_observations: 3
+    min_value:
+      search:
+      - 0.25
+      - 0.15
+scoring:
+  blocks:
+  - component: percentile_v1
+    params:
+      metric: momentum_12_1m
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 10
+    sell_rank: 1.0
+    max_weight:
+      search:
+        equal_among_passing: 1.0
+        cap_10pct: 0.1
+exits:
+  search:
+    none: []
+    stop8: [{component: stop_loss_v1, params: {pct: 0.08}}]
