@@ -382,6 +382,31 @@ Kombinationen är bättre än båda delarna var för sig: avkastningen ligger ö
 
 **Kombinationen värdekomposit + CANSLIM i samma marknader** (H8, experiment `h8_value_canslim_{no,fi,dk,eu,us}`): samma 4 kombinationer som i Sverige, med marknadens egna delar. Eftersom kombinationen valdes på svenska resultat är detta det närmaste ett oberoende test av den. Värdekompositen i USA (`value_composite_us_v1`, 6 kombinationer som i övriga marknader) körs först för att delen ska finnas.
 
+**Resultat CANSLIM andra marknader 2026-10-30** (trials 765–815; lika vikt bland de som klarar urvalet, ingen exit, mot månadsvis likvid kontroll):
+
+| Marknad | A ≥ 25 % | A ≥ 15 % | Alla 8: median, före kontrollen | Kommentar |
+|---|---|---|---|---|
+| SE | +9,4 % | +7,6 % | −0,7 %, 4/8 | |
+| NO | +23,7 % | +16,2 % | +1,1 %, 4/8 | 0–7 bolag; drawdown −68 % |
+| FI | −4,4 % | −5,4 % | −4,1 %, 0/8 | få bolag; fungerar inte |
+| DK | +2,9 % | +4,4 % | −7,5 %, 2/8 | få bolag |
+| EU | +17,2 % | +18,2 % | +13,0 %, 8/8 | alla 10 platser fylls; Sharpe 0,92–0,96 |
+| USA | +3,3 % | +3,0 % | +3,1 %, 8/8 | alla 10 platser; endast överlevare |
+
+Med högst 10 % per bolag (kassa) och med stop loss 8 % sämre överallt. Där urvalet fyller portföljen (Europa, USA) håller CANSLIM i alla 8 kombinationer; i de små grannländerna avgör ett fåtal aktier.
+
+**Kombinationen värdekomposit + CANSLIM** (trials 816–835; bästa jämförelse: värdekomposit med stop 20 % 70 % + CANSLIM 30 %):
+
+| Marknad | Kombination: CAGR / Sharpe / drawdown | Värdekomposit med stop ensam | CANSLIM ensam |
+|---|---|---|---|
+| NO | 22,8 % / 1,16 / −35 % | 16,8 % / 0,95 / −41 % | 31,7 % / 0,85 / −68 % |
+| FI | 8,0 % / 0,33 / −40 % | 8,8 % / 0,44 / −39 % | 2,2 % / 0,01 / −71 % |
+| DK | 15,6 % / 0,80 / −30 % | 15,6 % / 0,87 / −40 % | 12,8 % / 0,34 / −64 % |
+| EU | 19,2 % / 1,07 / −34 % | 16,2 % / 0,88 / −44 % | 24,0 % / 0,92 / −49 % |
+| USA | 16,4 % / 0,71 / −35 % | 15,8 % / 0,67 / −46 % | 14,7 % / 0,43 / −52 % |
+
+Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och Sverige), lägre drawdown överallt, men inte bättre Sharpe där CANSLIM inte fungerar (Finland) eller är svag (Danmark). Slutsats: delarna kompletterar varandra där båda har en egen fördel; kombinationen räddar inte en del som saknar fördel.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
