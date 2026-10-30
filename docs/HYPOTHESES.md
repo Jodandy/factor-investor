@@ -409,6 +409,25 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 
 ---
 
+## H11 — Värderingsband och Buffett-proxy (relativ och absolut värdering)
+
+**Idé** (från användarens PineScript "ValBands VÄRDE-ENSEMBLE + Buffett-proxy"): köp när bolaget är billigt mot sin egen historik (relativ värdering), när dagens kurs ger hög implicit avkastning i en owner earnings-DCF (absolut värdering), eller när båda gäller; sälj när värderingen normaliserats.
+
+**Motivering**: Multiplar tenderar att återgå mot bolagets egen normalnivå när fundamenta håller; en enkel DCF på normaliserade vinster fångar om priset ger en rimlig avkastning oavsett historisk multipel. Skriptets specifika parametrar är inte nödvändigtvis bäst, så flera köp- och säljregler och trösklar prövas.
+
+**Förregistrering 2026-10-30** (SE 2008–2026, månadsvis, omsättning ≥ 1 MSEK/dag, knivgard: omsättningstillväxt 1 år ≥ −10 % vid köp (förenkling av skriptets fundamentaindex över 26 veckor), högst 20 innehav rankade efter värdering, kontroll `h0_liquid_equal_weight_monthly_v1`):
+- **Relativ värdering**: per multipel (P/E, P/S, P/B, P/FCF, EV/EBIT; skriptet har EV/EBITDA) uppsida = historisk median (eller 75:e percentil, övre band) av egen multipel de senaste 2 åren (månadsdata, minst 12 observationer) / dagens multipel − 1; lika vikt över giltiga multiplar (minst 2; skriptets standard är korrelationsvikter, "Lika" finns som val). Negativa multiplar ogiltiga.
+- **Absolut värdering**: owner earnings = snitt EPS senaste 3 räkenskapsår (nettovinst, skriptets standard), tillväxt = min(10 %, ROE × andel behållen vinst), linjärt ned till 3 % år 10, exitmultipel 12; implicit årsavkastning vid dagens kurs (bisektion, [−25 %, 100 %]). Allt ur årsrapporter kända vid beslutsdagen.
+- **Köp/sälj och parameterrum (26)**:
+  - `valband_relative_v1`: köp vid uppsida ≥ {15, 25, 40 %}; behåll tills kursen nått fair value (mitten) eller övre bandet (12)
+  - `valband_absolute_v1`: köp vid implicit avkastning ≥ {10, 12, 15 %}; behåll tills den understiger 6 % (6)
+  - `valband_both_v1`: köp vid uppsida ≥ {15, 25 %} och implicit avkastning ≥ {10, 12 %}; sälj när någon av säljreglerna slår till (8)
+  - storlek: 1/20 per innehav med resten i kassa, eller lika vikt bland de som klarar urvalet (× 2 överallt)
+
+**Falsifieras om**: ingen av de tre familjerna slår kontrollen i median, eller resultatet bara håller i enstaka tidsblock. Jämförs också med värdekompositen (H7), som är närmast släkt (värdering mot andra bolag i stället för mot egen historik).
+
+---
+
 ## Överlägg som testas på alla hypoteser (stadium 4)
 
 **Timing och exits på H2, förregistrerat 2026-10-29** (`config/strategies/h2_daily_v1.yaml`): H2 v1 med lika vikt, 25 innehav, kvartalsvis, SE 2008–2026, plus den dagliga klockan. Parameterrum (18): timing {ingen, pris över 200-dagars medel, 50-dagars utbrott} × exit {ingen, trailing stop 20 %, 30 %} × sälj på rank {ja, nej (bara exits säljer)}. Ingen timing, ingen exit och sälj på rank är vanlig H2 (referens). Jämförs med referensen och med kontrollen `h0_liquid_equal_weight_se` (kvartal) på avkastning, Sharpe och största drawdown. Ett överlägg bedöms tillföra något om det förbättrar riskjusterad avkastning eller drawdown mot referensen i de flesta kombinationer och i de flesta tidsblock, inte i en enda.

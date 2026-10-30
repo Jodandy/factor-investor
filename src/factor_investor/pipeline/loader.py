@@ -33,7 +33,7 @@ def yaml_strategy(path: Path) -> RegisteredStrategy:
 
         return PipelineStrategy(resolve(raw, params))
 
-    modules = sorted({get_component(c).source_file() for c in component_ids(raw)})
+    modules = sorted({path for c in component_ids(raw) for path in get_component(c).source_files()})
     return RegisteredStrategy(
         raw["id"], factory, (path, *modules), hypothesis=raw.get("hypothesis"), area=raw.get("area")
     )

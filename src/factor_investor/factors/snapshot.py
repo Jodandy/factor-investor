@@ -103,3 +103,25 @@ def metric_history_all(metric: str) -> pl.DataFrame:
         {"instrument_id": ids, "date": dates, "value": [float(v) for v in values]},
         schema=HISTORY_SCHEMA,
     ).sort("date", "instrument_id")
+
+
+ANNUAL_SCHEMA = {
+    "instrument_id": pl.Int32,
+    "period_end": pl.Date,
+    "known_from": pl.Date,
+    "value": pl.Float64,
+}
+
+
+def annual_reports_all(metric: str) -> pl.DataFrame:
+    """Every annual report value of `metric` with the date it became known
+    (fundamentals_pit, period_type year). Callers keep known_from <= their date."""
+    query = text("""
+        SELECT instrument_id, period_end, known_from, value FROM fundamentals_pit
+        WHERE metric = :metric AND period_type = 'year' AND value IS NOT NULL
+    """)
+    with get_session() as session:
+        rows = session.execute(query, {"metric": metric}).all()
+    return pl.DataFrame(
+        [(i, p, k, float(v)) for i, p, k, v in rows], schema=ANNUAL_SCHEMA, orient="row"
+    )

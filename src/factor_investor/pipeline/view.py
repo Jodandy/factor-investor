@@ -15,7 +15,12 @@ from functools import cache, lru_cache
 import polars as pl
 
 from factor_investor.benchmarks.universe import Market, Region, investable_universe
-from factor_investor.factors.snapshot import known_metrics, metric_history_all, metric_snapshot
+from factor_investor.factors.snapshot import (
+    annual_reports_all,
+    known_metrics,
+    metric_history_all,
+    metric_snapshot,
+)
 
 # Universe fields usable in expressions; amounts in the area's currency.
 # sector_id is Börsdata's current sector (no history; companies rarely move).
@@ -46,6 +51,11 @@ def _full_history(metric: str) -> pl.DataFrame:
     return metric_history_all(metric)
 
 
+@lru_cache(maxsize=32)
+def _annual_all(metric: str) -> pl.DataFrame:
+    return annual_reports_all(metric)
+
+
 def _history(metric: str, from_date: date, as_of: date) -> pl.DataFrame:
     """Snapshots in (from_date, as_of]: the full history is read once per
     process and cut here, so nothing after as_of reaches a component."""
@@ -73,6 +83,7 @@ def available_names() -> frozenset[str]:
 def clear_caches() -> None:
     _snapshot.cache_clear()
     _full_history.cache_clear()
+    _annual_all.cache_clear()
     investable_universe.cache_clear()
 
 
@@ -112,6 +123,17 @@ class PointInTimeView:
 
     def metric_history(self, name: str, years: int) -> pl.DataFrame:
         return _history(name, self._as_of - timedelta(days=round(365.25 * years)), self._as_of)
+
+    def annual(self, metric: str, years: int) -> pl.DataFrame:
+        """The last `years` fiscal years of `metric` reported by T."""
+        return (
+            _annual_all(metric)
+            .filter(pl.col("known_from") <= self._as_of)
+            .sort("period_end", descending=True)
+            .group_by("instrument_id", maintain_order=True)
+            .head(years)
+            .select("instrument_id", "period_end", "value")
+        )
 
     def frame(self, instruments: pl.DataFrame, names: frozenset[str]) -> pl.DataFrame:
         unknown = set(names) - available_names()

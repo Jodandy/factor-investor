@@ -1,0 +1,41 @@
+# valband_absolute_v1: H11 (ValBands + Buffett proxy, docs/HYPOTHESES.md), pre-registered 2026-10-30.
+# Liquid SE (turnover >= 1 MSEK/day), knife guard: revenue growth 1y >= -10% (buys only);
+# monthly; at most 20 names ranked by valuation; sizing 1/20 each with cash, or equal among
+# names that qualify. Held names stay while the hold rule passes.
+# Never edit after a logged run: create _v2 instead.
+id: valband_absolute_v1
+hypothesis: H11
+description: 'H11 absolute valuation: buy when the owner-earnings implied return is high, hold until it
+  is low'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and revenue_growth_1y >= -0.10
+- component: owner_earnings_irr_filter_v1
+  params:
+    min_irr:
+      search:
+      - 0.1
+      - 0.12
+      - 0.15
+hold:
+- component: owner_earnings_irr_filter_v1
+  params:
+    min_irr: 0.06
+scoring:
+  blocks:
+  - component: owner_earnings_irr_score_v1
+    params: {}
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 20
+    sell_rank: 1.0
+    max_weight:
+      search:
+        cap_1_20: 0.05
+        equal_among_passing: 1.0

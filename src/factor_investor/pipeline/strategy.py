@@ -81,6 +81,7 @@ class PipelineStrategy(Strategy):
         self.config = config
         self.area = AREAS[config.area]
         self.filters = [build_component(s.component, s.params) for s in config.universe]
+        self.hold = [build_component(s.component, s.params) for s in config.hold]
         self.blocks = [
             (build_component(b.component, b.params), b.weight) for b in config.scoring.blocks
         ]
@@ -134,12 +135,13 @@ class PipelineStrategy(Strategy):
         self, as_of_date: date, current_holdings: pl.DataFrame | None = None
     ) -> TargetPortfolio:
         view = PointInTimeView(as_of_date, self.area)
-        instruments = view.universe().select("instrument_id")
+        investable = view.universe().select("instrument_id")
+        instruments = investable
         universe_size = len(instruments)
         for component in self.filters:
             assert isinstance(component, FilterComponent)
             instruments = component.run(view, instruments)
-        if instruments.is_empty():
+        if instruments.is_empty() and not self.hold:
             return TargetPortfolio(pl.DataFrame(schema=WEIGHT_SCHEMA))
         scores = []
         for component, weight in self.blocks:
@@ -151,6 +153,22 @@ class PipelineStrategy(Strategy):
             if current_holdings is not None and not current_holdings.is_empty()
             else []
         )
+        if self.hold and current:
+            # held names that pass the hold rules outrank every buy candidate
+            holding = investable.filter(pl.col("instrument_id").is_in(current))
+            for component in self.hold:
+                assert isinstance(component, FilterComponent)
+                holding = component.run(view, holding)
+            composite = pl.concat(
+                [
+                    composite.filter(
+                        ~pl.col("instrument_id").is_in(holding["instrument_id"].implode())
+                    ),
+                    holding.select(
+                        pl.col("instrument_id").cast(pl.Int32), pl.lit(2.0).alias("score")
+                    ),
+                ]
+            )
         assert isinstance(self.portfolio, PortfolioComponent)
         weights = self.portfolio.run(composite, current)
         metadata = {

@@ -54,6 +54,9 @@ class StrategyConfig(BaseModel):
     rebalance: Rebalance
     cost_bps: int = Field(default=10, ge=0)
     universe: list[ComponentSpec] = Field(default_factory=list)
+    # hold rules: held names passing these filters are kept ahead of new
+    # candidates even if they no longer pass the buy filters (`universe`)
+    hold: list[ComponentSpec] = Field(default_factory=list)
     scoring: Scoring
     portfolio: ComponentSpec
     # Daily clock (stages 3-5): new positions only when every timing signal is
@@ -84,6 +87,8 @@ class StrategyConfig(BaseModel):
     @model_validator(mode="after")
     def _components(self) -> "StrategyConfig":
         for spec in self.universe:
+            spec.check(ComponentKind.FILTER)
+        for spec in self.hold:
             spec.check(ComponentKind.FILTER)
         for block in self.scoring.blocks:
             block.check(ComponentKind.SCORE)

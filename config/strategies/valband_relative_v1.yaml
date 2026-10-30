@@ -1,0 +1,49 @@
+# valband_relative_v1: H11 (ValBands + Buffett proxy, docs/HYPOTHESES.md), pre-registered 2026-10-30.
+# Liquid SE (turnover >= 1 MSEK/day), knife guard: revenue growth 1y >= -10% (buys only);
+# monthly; at most 20 names ranked by valuation; sizing 1/20 each with cash, or equal among
+# names that qualify. Held names stay while the hold rule passes.
+# Never edit after a logged run: create _v2 instead.
+id: valband_relative_v1
+hypothesis: H11
+description: 'H11 relative valuation: buy when cheap vs own multiple history, hold until fair value'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and revenue_growth_1y >= -0.10
+- component: relative_value_filter_v1
+  params:
+    band: mid
+    min_upside:
+      search:
+      - 0.15
+      - 0.25
+      - 0.4
+hold:
+  search:
+    to_mid:
+    - component: relative_value_filter_v1
+      params:
+        band: mid
+        min_upside: 0.0
+    to_upper_band:
+    - component: relative_value_filter_v1
+      params:
+        band: high
+        min_upside: 0.0
+scoring:
+  blocks:
+  - component: relative_value_score_v1
+    params: {}
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 20
+    sell_rank: 1.0
+    max_weight:
+      search:
+        cap_1_20: 0.05
+        equal_among_passing: 1.0

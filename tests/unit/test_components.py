@@ -21,10 +21,12 @@ class FakeView:
         metrics: dict[str, dict[int, float]],
         history: dict[str, list[tuple[int, date, float]]] | None = None,
         universe: dict[str, dict[int, float]] | None = None,
+        annual: dict[str, list[tuple[int, date, float]]] | None = None,
     ) -> None:
         self._metrics = metrics
         self._history = history or {}
         self._universe = universe or {}
+        self._annual = annual or {}
 
     @property
     def as_of(self) -> date:
@@ -42,6 +44,18 @@ class FakeView:
             self._history[name],
             schema={"instrument_id": pl.Int32, "date": pl.Date, "value": pl.Float64},
             orient="row",
+        )
+
+    def annual(self, metric: str, years: int) -> pl.DataFrame:
+        return (
+            pl.DataFrame(
+                self._annual.get(metric, []),
+                schema={"instrument_id": pl.Int32, "period_end": pl.Date, "value": pl.Float64},
+                orient="row",
+            )
+            .sort("period_end", descending=True)
+            .group_by("instrument_id", maintain_order=True)
+            .head(years)
         )
 
     def frame(self, instruments: pl.DataFrame, names: frozenset[str]) -> pl.DataFrame:

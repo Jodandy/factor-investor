@@ -35,6 +35,11 @@ class View(Protocol):
         """instrument_id plus one column per name (metric or universe field)."""
         ...
 
+    def annual(self, metric: str, years: int) -> pl.DataFrame:
+        """[instrument_id, period_end, value]: the last `years` fiscal years
+        reported by the view's date (annual reports known on that date)."""
+        ...
+
 
 class ComponentKind(StrEnum):
     FILTER = "filter"
@@ -56,9 +61,17 @@ class Component(ABC):
     def __init__(self, params: ComponentParams) -> None:
         self.params = params
 
+    # shared modules whose code is part of this component's behaviour
+    extra_sources: ClassVar[tuple[str, ...]] = ()
+
     @classmethod
     def source_file(cls) -> Path:
         return Path(inspect.getfile(cls))
+
+    @classmethod
+    def source_files(cls) -> list[Path]:
+        own = cls.source_file()
+        return [own, *(own.parent / name for name in cls.extra_sources)]
 
     @classmethod
     def source_hash(cls) -> str:

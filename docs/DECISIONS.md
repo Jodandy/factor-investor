@@ -987,3 +987,15 @@ UK companies with Jersey or Guernsey ISINs (Glencore, WPP) are not domestic by t
 **Known simplification:** holdings that two sleeves share are not netted (each sleeve trades as if alone), which slightly overstates costs.
 
 **Alternatives considered:** one engine run with a combined target portfolio (needs netting of daily-clock keep sets across members; more code for a small cost difference); averaging member returns without rebalancing (weights drift without limit).
+
+---
+
+## 2026-10-30 | Hold rules, annual reports in the view, shared component modules
+
+**Decision** (for H11, the user's ValBands + Buffett-proxy script):
+- **Hold rules** (`hold` in strategy YAML): filters applied to the current holdings; a held name that passes them outranks every buy candidate and is kept even if it no longer passes the buy filters. Separates "buy when cheap" from "sell when no longer cheap", which the plain pipeline (sell anything outside the selection) cannot express.
+- **Annual reports** in the point-in-time view: `view.annual(metric, years)` returns the last fiscal years from `fundamentals_pit` (period_type year) known on T, read once per metric per process and cut at T.
+- **Shared component modules**: a component may list `extra_sources` (e.g. `valuation.py`), which become part of the source hash of every strategy using it. A change to shared valuation math then counts as a change to those strategies.
+- **Capped targets**: a target whose weights sum to less than 1 keeps its cash in plain and daily mode (`top_n_capped_v1`).
+
+**Tests:** hold rules keep names the buy rule alone would sell and drop those that fail the hold rule (real data); a pipeline with both valuation filters, both scores and a hold rule gives identical targets with every row and annual report after T deleted; logged results and all 53 logged strategy hashes unchanged.
