@@ -451,6 +451,20 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 - Falsifieras om ingen familj slår kontrollen i median över samma period. Jämförs även med värdekompositen över samma period.
 - Tillagd kontroll (förregistrerad 2026-10-30, före analys av vad grinden ensam ger): `h0_quality_gate_v1`, likavikt över alla likvida bolag som klarar kvalitetsgrinden (bas/strikt), månadsvis, 2011–2026. Visar vad värderingsreglerna tillför utöver grinden. Likvid kontroll körs om från 2011 för CSCV över samma period.
 
+**Resultat H11 v2 2026-10-30** (trials 878–917, kontroller 918–920, SE 2011-01 – 2026-10):
+
+| | CAGR (median) | Sharpe | Max DD | Mot likvid kontroll (8,8 %) | Mot enbart kvalitetsgrinden (samma nivå) | PBO / DSR mot grinden |
+|---|---|---|---|---|---|---|
+| Enbart kvalitetsgrinden, bas / strikt | 14,4 / 15,2 % | 0,76 / 0,78 | −39 % | +5,6 / +6,4 % | — | — |
+| Absolut (implicit avkastning) | 15,2 % | 0,80 | −29 % | +6,5 %, 12/12, PBO 0,34, DSR 0,98 | bas +1,1 % (6/6), strikt −0,4 % (2/6) | 0,20 / 0,35 |
+| Relativ (egen multipelhistorik) | 11,3 % | 0,57 | −29 % | +2,5 %, 12/12 | −3,4 / −2,8 % (0/12) | 0,54 / 0,05 |
+| Båda | 11,8 % | 0,63 | −28 % | +2,6 %, 16/16 | −3,1 / −3,7 % (1/16) | 0,19 / 0,04 |
+
+- Kvalitetsgrinden förklarar nästan allt: likvikt över alla bolag som klarar den ger 14–15 %/år.
+- Absolut värdering ovanpå grinden: ungefär samma avkastning men lägre drawdown (−29 % mot −39 %) och något högre Sharpe; meravkastningen över grinden är liten och inte säkerställd (DSR 0,35).
+- Relativ värdering (billig mot egen historik) drar ned avkastningen även bland kvalitetsbolag, och "båda" ärver det.
+- Slutsats: relativ värdering mot egen historik falsifierad i Sverige (v1 och v2). Absolut owner earnings-värdering tillför möjligen riskreduktion inom en kvalitetsgrind, ingen säkerställd meravkastning. Kvalitetsgrinden i sig (fem års lönsamhet, ROIC, låg skuld) är ett starkt eget resultat, men valt i efterhand: bör förregistreras som egen hypotes och prövas i andra marknader.
+
 ---
 
 ## Överlägg som testas på alla hypoteser (stadium 4)
