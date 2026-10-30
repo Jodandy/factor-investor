@@ -1,0 +1,64 @@
+# valband_relative_v2: H11 v2 (docs/HYPOTHESES.md), pre-registered 2026-10-30. As _v1 plus a quality gate on buys:
+# P/E > 0, operating margin > 0 now and in each of the last 5 years, net debt/EBIT < 3,
+# 5-year median ROIC >= 8% (basic) or 15% (strict); lower valuation thresholds; held names
+# are also sold when they turn loss-making. Liquid SE, monthly, at most 20 names.
+# Never edit after a logged run: create _v3 instead.
+id: valband_relative_v2
+hypothesis: H11
+description: 'H11 v2 relative valuation with a quality gate: buy when cheap vs own multiple history, hold
+  until the upper band'
+area: SE
+rebalance: monthly
+cost_bps: 10
+universe:
+- component: expression_v1
+  params:
+    expression: turnover >= 1000000 and revenue_growth_1y >= -0.10 and pe_ratio > 0 and operating_margin
+      > 0 and net_debt_to_ebit < 3
+- component: history_filter_v1
+  params:
+    metric: operating_margin
+    stat: min
+    years: 5
+    min_observations: 5
+    min_value: 0.0
+- component: history_filter_v1
+  params:
+    metric: roic
+    stat: median
+    years: 5
+    min_observations: 5
+    min_value:
+      search:
+        basic: 0.08
+        strict: 0.15
+- component: relative_value_filter_v1
+  params:
+    band: mid
+    min_upside:
+      search:
+      - 0.05
+      - 0.1
+      - 0.15
+hold:
+- component: relative_value_filter_v1
+  params:
+    band: high
+    min_upside: 0.0
+- component: expression_v1
+  params:
+    expression: pe_ratio > 0
+scoring:
+  blocks:
+  - component: relative_value_score_v1
+    params: {}
+    weight: 1
+portfolio:
+  component: top_n_capped_v1
+  params:
+    top_n: 20
+    sell_rank: 1.0
+    max_weight:
+      search:
+        cap_1_20: 0.05
+        equal_among_passing: 1.0

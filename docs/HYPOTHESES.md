@@ -439,7 +439,16 @@ Kombinationen ger högre Sharpe än båda delarna i Norge, Europa och USA (och S
 - Säljregeln "till övre bandet" är marginellt bättre än "till mitten".
 - Diagnos (relativ, 2024: −36 % mot kontrollens +5 %): portföljen fylldes av fallande förlustbolag (Viaplay, SolTech, Intervacc, Clinical Laserthermia, Mendus, Starbreeze). P/S och P/B är positiva även för förlustbolag och ser billiga ut mot egen historik när kursen kollapsar; snittet över giltiga multiplar kräver inte vinst. Knivgarden (omsättningstillväxt) fångar inte detta.
 - "Båda" är sämst: kombinationen väljer bolag som är billiga både mot historiken och mot DCF:en, alltså oftast de som fallit mest.
-- Jämfört med värdekompositen (H7, värdering mot andra bolag med kvalitetsfilter) är egen-historik-värdering utan lönsamhetskrav klart sämre i Sverige.
+- Jämfört med värdekompositen (H7, värdering mot andra bolag) är egen-historik-värdering utan lönsamhetskrav klart sämre i Sverige.
+
+**H11 v2, förregistrering 2026-10-30** (efter v1:s resultat, alltså valt i efterhand; trialerna räknas in): samma värderingsregler men med kvalitetsgrind vid köp och lägre trösklar.
+- Kvalitetsgrind: P/E > 0, rörelsemarginal > 0 nu och i vart och ett av de 5 senaste åren (årliga ögonblicksbilder), nettoskuld/EBIT < 3, median-ROIC 5 år ≥ {8 % (bas), 15 % (strikt)}.
+- Innehav säljs också om bolaget blir förlustbolag (P/E ≤ 0).
+- `valband_relative_v2`: uppsida ≥ {5, 10, 15 %}, behåll till övre bandet (12)
+- `valband_absolute_v2`: implicit avkastning ≥ {6, 8, 10 %}, behåll tills den understiger 4 % (12)
+- `valband_both_v2`: uppsida ≥ {5, 10 %} och implicit avkastning ≥ {6, 8 %}, behåll medan båda säljreglerna klarar sig (16)
+- Storlek som v1 (× 2). 40 konfigurationer. Period 2011-01-01 – 2026-10-27 (5 års historik kräver data från 2006). Den strikta "båda"-varianten släpper bara igenom 1–10 bolag.
+- Falsifieras om ingen familj slår kontrollen i median över samma period. Jämförs även med värdekompositen över samma period.
 
 ---
 
