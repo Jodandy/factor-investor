@@ -252,6 +252,8 @@ Alla 8 slår kontrollen, median +4,0 %/år. Årlig rebalansering är ojämnare (
 
 **Andra marknader, förregistrerat 2026-10-30**: `magic_formula_{no,fi,dk,eu}_v1`, samma 8 kombinationer; omsättningsgolv som H2, börsvärdesgolv 500 M / 2 MD NOK, 50 M / 200 M EUR (Finland, Europa), 350 M / 1,4 MD DKK; kontroller `h0_magic_formula_universe_{no,fi,dk,eu}_v1` (likavikt över samma universum, samma rebalansering och golv); period 2008-12–2026.
 
+**Resultat andra marknader 2026-10-30**: överavkastning mot kontrollen, median (min–max), konfigurationer före: SE +4,0 % (8/8), NO +4,3 % (+2,2 – +5,5, 8/8), FI +1,2 % (−0,6 – +3,3, 6/8), DK +0,1 % (−0,8 – +0,8, 5/8), EU −0,9 % (−1,8 – +1,8, 2/8). Magiska formeln håller i Sverige och Norge men inte i Danmark och Europa; svagare än H2 och värdekompositen i samma marknader.
+
 ---
 
 ## H7 — Värdekomposit
@@ -275,6 +277,18 @@ Värdekompositen är den strategi där stops hjälper mest: den har störst draw
 
 **Andra marknader, förregistrerat 2026-10-30**: `value_composite_{no,fi,dk,eu}_v1`, samma regler utan timing; exit {ingen, stop 20 %, 30 %} × sälj på rank {ja, nej} = 6 per marknad (prövar också om stops hjälper värdekompositen även där); omsättningsgolv som H2 i respektive marknad; kontroll `h0_liquid_equal_weight_{no,fi,dk,eu}`.
 
+**Resultat andra marknader 2026-10-30** (trials 671–742). Överavkastning mot likvid likavikt (kvartal), utan stop / stop 20 % (bara exits säljer) / stop 30 % (bara exits säljer):
+
+| Marknad | Vanlig | Stop 20 % | Stop 30 % | Största drawdown utan / med stop 20 % |
+|---|---|---|---|---|
+| SE | +5,3 % | +6,9 % | +8,4 % | −50 % / −36 % |
+| NO | +7,8 % | +9,1 % | +7,7 % | −51 % / −37 % |
+| FI | +1,4 % | +2,7 % | +1,9 % | −48 % / −37 % |
+| DK | +3,5 % | +6,0 % | +5,4 % | −52 % / −39 % |
+| EU | +6,5 % | +9,5 % | +9,1 % | −57 % / −42 % |
+
+Alla 30 konfigurationer slår kontrollen. Värdekompositen håller i alla fem marknader, och stops höjer avkastningen och sänker drawdown i alla fem. Utan stops och utan att sälja på rank är den svagast överallt. Den mest robusta strategin hittills.
+
 ---
 
 ## H8 — Värde/kvalitet och momentum i separata delar
@@ -288,6 +302,20 @@ Värdekompositen är den strategi där stops hjälper mest: den har störst draw
 - 2 × 2 × 2 = 8. Obs: utbrott + stop är den bästa momentumvarianten från ablationen, så den delen bär urvalsbias; vanlig momentum finns med som jämförelse.
 
 **Bedöms** mot värdedelen ensam (förbättras Sharpe och drawdown?) och mot kontrollen `h0_liquid_equal_weight_se` (kvartal).
+
+**Resultat 2026-10-30** (trials 663–670; nyckeltal från dagliga avkastningar):
+
+| | CAGR | Sharpe | Största drawdown |
+|---|---|---|---|
+| H2 ensam | 15,2 % | 0,65 | −50 % |
+| värdekomposit ensam | 15,0 % | 0,62 | −54 % |
+| momentum ensam / med utbrott + stop | 10,1 % / 14,0 % | 0,36 / 0,84 | −56 % / −29 % |
+| H2 + 30 % / 50 % vanlig momentum | 13,8 % / 12,8 % | 0,59 / 0,53 | −49 % / −48 % |
+| H2 + 30 % / 50 % momentum med utbrott + stop | 15,0 % / 14,8 % | 0,75 / 0,81 | −42 % / −37 % |
+| värdekomposit + 30 % / 50 % vanlig momentum | 13,8 % / 12,9 % | 0,58 / 0,53 | −52 % / −50 % |
+| värdekomposit + 30 % / 50 % momentum med utbrott + stop | 15,0 % / 14,8 % | 0,73 / 0,80 | −46 % / −40 % |
+
+Överavkastningarna mot kontrollen är okorrelerade (H2 mot momentum 0,04–0,11) eller negativt korrelerade (värdekomposit mot momentum −0,23 till −0,43), så delarna kompletterar varandra. Men avkastningarna i sig är starkt korrelerade (0,64–0,81, alla är svenska aktier), och vanlig momentum har för liten egen fördel: blandningen sänker avkastningen. Med momentum med utbrott + stop blir Sharpe bättre (0,75–0,81 mot 0,62–0,65) och drawdown mindre till nästan samma avkastning, men den momentumvarianten är vald i efterhand. Stops direkt på värdedelen (H7: 16–18 %/år, Sharpe ~0,8) gav liknande riskminskning med högre avkastning. **Slutsats:** delarna kompletterar varandra på papperet, men ingen tydlig vinst jämfört med en värdestrategi med stops.
 
 ---
 
